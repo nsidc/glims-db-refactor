@@ -57,30 +57,6 @@ CREATE FUNCTION public.plpgsql_validator(oid) RETURNS void
 ALTER FUNCTION public.plpgsql_validator(oid) OWNER TO postgres;
 
 --
--- Name: segments_of_package(integer); Type: FUNCTION; Schema: public; Owner: braup
---
-
-CREATE FUNCTION public.segments_of_package(integer) RETURNS integer
-    LANGUAGE plpgsql
-    AS $_$
-DECLARE
-  package_id            ALIAS FOR $1;
-  pack_segs             segment.segment_id%TYPE;
-
-BEGIN
-SELECT INTO pack_segs segment_id FROM segment
-WHERE     segment.segment_id         = glacier_line.segment_id
-      AND glacier_line.analysis_id   = glacier_dynamic.analysis_id
-      AND glacier_dynamic.package_id = package_id
-;
-RETURN (pack_segs);
-END;
-$_$;
-
-
-ALTER FUNCTION public.segments_of_package(integer) OWNER TO braup;
-
---
 -- Name: st_contains(public.geometry, public.geometry, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -124,50 +100,27 @@ CREATE FUNCTION public.st_intersects(public.geometry, public.geometry, integer) 
 
 ALTER FUNCTION public.st_intersects(public.geometry, public.geometry, integer) OWNER TO postgres;
 
---
--- Name: testfunc(integer, integer); Type: FUNCTION; Schema: public; Owner: braup
---
 
-CREATE FUNCTION public.testfunc(integer, integer) RETURNS integer
-    LANGUAGE plpgsql
-    AS $_$
-begin
-  return( select $1 );
-end;
-$_$;
-
-
-ALTER FUNCTION public.testfunc(integer, integer) OWNER TO braup;
+---
+--- Create GLIMS-specific tables
+---
 
 SET default_tablespace = '';
 
 --
 -- Name: analyses_groups; Type: TABLE; Schema: public; Owner: braup
 --
+-- Comment out the lines related to groups and RGI-like snapshots for now.
 
-CREATE TABLE public.analyses_groups (
-    analysis_id integer,
-    group_id integer,
-    state_id integer NOT NULL
-);
+-- CREATE TABLE public.analyses_groups (
+--     analysis_id integer,
+--     group_id integer,
+--     state_id integer NOT NULL
+-- );
+-- 
+-- 
+-- ALTER TABLE public.analyses_groups OWNER TO braup;
 
-
-ALTER TABLE public.analyses_groups OWNER TO braup;
-
---
--- Name: ancillary_data; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.ancillary_data (
-    data_type character varying(20) NOT NULL,
-    location text NOT NULL,
-    size integer,
-    comment text,
-    anc_data_id integer NOT NULL
-);
-
-
-ALTER TABLE public.ancillary_data OWNER TO braup;
 
 --
 -- Name: area_histogram; Type: TABLE; Schema: public; Owner: braup
@@ -195,101 +148,6 @@ CREATE TABLE public.area_histogram_data (
 
 
 ALTER TABLE public.area_histogram_data OWNER TO braup;
-
---
--- Name: aster_footprints; Type: TABLE; Schema: public; Owner: aster_metadata
---
-
-CREATE TABLE public.aster_footprints (
-    aster_id integer NOT NULL,
-    granule_id character varying(50) NOT NULL,
-    edc_id integer NOT NULL,
-    insert_time timestamp without time zone NOT NULL,
-    browse_id character varying(100),
-    short_name character varying(10),
-    version_id integer,
-    size_mb character varying(30),
-    day_or_night character varying(10),
-    production_date timestamp without time zone,
-    capture_time time without time zone,
-    capture_date date,
-    missing_data integer,
-    out_of_bounds integer,
-    interpolated integer,
-    cloud_cover integer,
-    band12 character varying(30),
-    band8 character varying(30),
-    azimuth_angle character varying,
-    processing_center character varying(10),
-    aster_gains character varying(100),
-    band9 character varying(30),
-    band1 character varying(30),
-    radiometricdbversion character varying(30),
-    lr_cloud_cover integer,
-    band2 character varying(30),
-    band5 character varying(30),
-    ll_cloud_cover integer,
-    band10 character varying(30),
-    vnir2_ob_mode character varying(5),
-    band13 character varying(30),
-    cloud_coverage integer,
-    band6 character varying(30),
-    resampling character varying(30),
-    swir_observationmode character varying(5),
-    generation_date character varying(30),
-    band3b character varying(30),
-    receiving_center character varying(30),
-    band11 character varying(30),
-    band14 character varying(30),
-    band4 character varying(30),
-    ul_cloud_cov integer,
-    band7 character varying(30),
-    ur_cloud_cov integer,
-    elevation_angle character varying(50),
-    tir_observationmode character varying(5),
-    band3n character varying(30),
-    dar_id character varying(80),
-    map_projection character varying(50),
-    geometric_dbversion character varying(50),
-    vnir1_ob_mode character varying(5),
-    swir_angle character varying(30),
-    vnir_angle character varying(30),
-    scene_orient_angle character varying(30),
-    tir_angle character varying(50),
-    glims_footprints public.geometry,
-    edc_browse_url character varying(120),
-    CONSTRAINT enforce_dims_footprint CHECK ((public.st_ndims(glims_footprints) = 2)),
-    CONSTRAINT enforce_geotype_footprint CHECK (((public.geometrytype(glims_footprints) = 'POLYGON'::text) OR (glims_footprints IS NULL))),
-    CONSTRAINT enforce_srid_footprint CHECK ((public.st_srid(glims_footprints) = 4326))
-);
-
-
-ALTER TABLE public.aster_footprints OWNER TO aster_metadata;
-
---
--- Name: band; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.band (
-    band_id integer NOT NULL,
-    instrument_id integer NOT NULL,
-    scan_type character varying(10),
-    ifov_x double precision,
-    ifov_y double precision,
-    sample_interval_x double precision,
-    sample_interval_y double precision,
-    passband_low double precision,
-    passband_high double precision,
-    passband_unit character varying(5),
-    num_bits integer,
-    num_lines integer,
-    num_samples integer,
-    polarization character varying(5),
-    band_name text
-);
-
-
-ALTER TABLE public.band OWNER TO braup;
 
 --
 -- Name: country; Type: TABLE; Schema: public; Owner: braup
@@ -337,30 +195,6 @@ ALTER TABLE public.country_gid_seq OWNER TO braup;
 
 ALTER SEQUENCE public.country_gid_seq OWNED BY public.country.gid;
 
-
---
--- Name: debris_cover_valids; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.debris_cover_valids (
-    debris_cover integer NOT NULL,
-    description text
-);
-
-
-ALTER TABLE public.debris_cover_valids OWNER TO braup;
-
---
--- Name: debris_distribution_valids; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.debris_distribution_valids (
-    debris_distribution integer NOT NULL,
-    description text
-);
-
-
-ALTER TABLE public.debris_distribution_valids OWNER TO braup;
 
 --
 -- Name: dominant_mass_source_valids; Type: TABLE; Schema: public; Owner: braup
@@ -443,20 +277,9 @@ CREATE TABLE public.frontal_characteristics_valids (
 ALTER TABLE public.frontal_characteristics_valids OWNER TO braup;
 
 --
--- Name: glacier_ancillary_info; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.glacier_ancillary_info (
-    analysis_id integer NOT NULL,
-    anc_data_id integer NOT NULL
-);
-
-
-ALTER TABLE public.glacier_ancillary_info OWNER TO braup;
-
---
 -- Name: glacier_countries; Type: TABLE; Schema: public; Owner: braup
 --
+-- Intersection table between glaciers and countries
 
 CREATE TABLE public.glacier_countries (
     glacier_id character varying(20) NOT NULL,
@@ -531,6 +354,7 @@ ALTER TABLE public.glacier_dynamic OWNER TO braup;
 --
 -- Name: glacier_image_info; Type: TABLE; Schema: public; Owner: braup
 --
+-- Intersection table between images and glaciers
 
 CREATE TABLE public.glacier_image_info (
     analysis_id integer NOT NULL,
@@ -539,20 +363,6 @@ CREATE TABLE public.glacier_image_info (
 
 
 ALTER TABLE public.glacier_image_info OWNER TO braup;
-
---
--- Name: glacier_line; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.glacier_line (
-    analysis_id integer NOT NULL,
-    segment_id integer NOT NULL,
-    segment_order integer NOT NULL,
-    line_type character varying(20)
-);
-
-
-ALTER TABLE public.glacier_line OWNER TO braup;
 
 --
 -- Name: people; Type: TABLE; Schema: public; Owner: braup
@@ -623,32 +433,6 @@ CREATE TABLE public.regional_centers (
 ALTER TABLE public.regional_centers OWNER TO braup;
 
 --
--- Name: segment; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.segment (
-    segment_id integer NOT NULL,
-    segment_type character varying(30) NOT NULL,
-    segment_label character varying(32),
-    segment_left_material character(3),
-    segment_right_material character(3),
-    orthocorrected boolean,
-    loc_unc_x numeric(11,4),
-    loc_unc_y numeric(11,4),
-    glob_unc_x numeric(11,4),
-    glob_unc_y numeric(11,4),
-    seg_left_feature character(3),
-    seg_right_feature character(3),
-    segment_lines public.geometry,
-    CONSTRAINT enforce_dims_segment_lines CHECK ((public.st_ndims(segment_lines) = 3)),
-    CONSTRAINT enforce_geotype_segment_lines CHECK (((public.geometrytype(segment_lines) = 'MULTILINESTRING'::text) OR (segment_lines IS NULL))),
-    CONSTRAINT enforce_srid_segment_lines CHECK ((public.st_srid(segment_lines) = 4326))
-);
-
-
-ALTER TABLE public.segment OWNER TO braup;
-
---
 -- Name: submission_info; Type: TABLE; Schema: public; Owner: braup
 --
 
@@ -714,147 +498,41 @@ CREATE VIEW public.submission_rc_info AS
 ALTER TABLE public.submission_rc_info OWNER TO postgres;
 
 --
--- Name: glacier_line_query_no_people; Type: VIEW; Schema: public; Owner: braup
+-- Name: glacier_entities; Type: TABLE; Schema: public; Owner: braup
+-- Old name:  glacier_polygons
 --
-
-CREATE VIEW public.glacier_line_query_no_people AS
- SELECT glacier_line.segment_id AS seg_id,
-    glacier_line.segment_order AS seg_order,
-    glacier_line.line_type,
-    segment.segment_type AS seg_type,
-    segment.segment_label AS seg_label,
-    segment.segment_left_material AS seg_l_mat,
-    segment.segment_right_material AS seg_r_mat,
-    segment.orthocorrected AS orthocorr,
-    segment.loc_unc_x,
-    segment.loc_unc_y,
-    segment.glob_unc_x,
-    segment.glob_unc_y,
-    segment.seg_left_feature AS seg_l_feat,
-    segment.seg_right_feature AS seg_r_feat,
-    segment.segment_lines AS seg_lines,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.area,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    glacier_static.glacier_status AS glac_stat,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date AS release_dt,
-    submission_info.process_description AS proc_desc,
-    submission_info.rc_id,
-    submission_rc_info.geog_area,
-    submission_rc_info.chief_affl,
-    glacier_static.parent_icemass_id AS parent_id
-   FROM public.glacier_line,
-    public.segment,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_rc_info
-  WHERE ((glacier_line.analysis_id = glacier_dynamic.analysis_id) AND (segment.segment_id = glacier_line.segment_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_line_query_no_people OWNER TO braup;
-
+-- Field "line_type" is becoming smallint:
 --
--- Name: glacier_line_query_no_people_v3; Type: VIEW; Schema: public; Owner: braup
---
+--   0: glac_bound
+--   1: debris_cov
+--   2: pro_lake
+--   3: supra_lake
+--   4: basin_bound
 
-CREATE VIEW public.glacier_line_query_no_people_v3 AS
- SELECT glacier_line.segment_id AS seg_id,
-    glacier_line.segment_order AS seg_order,
-    glacier_line.line_type,
-    segment.segment_type AS seg_type,
-    segment.segment_label AS seg_label,
-    segment.segment_left_material AS seg_l_mat,
-    segment.segment_right_material AS seg_r_mat,
-    segment.orthocorrected AS orthocorr,
-    segment.loc_unc_x,
-    segment.loc_unc_y,
-    segment.glob_unc_x,
-    segment.glob_unc_y,
-    segment.seg_left_feature AS seg_l_feat,
-    segment.seg_right_feature AS seg_r_feat,
-    segment.segment_lines AS seg_lines,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.area,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    glacier_static.glacier_status AS glac_stat,
-    glacier_static.est_disappear_date AS gone_date,
-    glacier_static.est_disappear_unc AS gone_dt_e,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date AS release_dt,
-    submission_info.process_description AS proc_desc,
-    submission_info.rc_id,
-    submission_rc_info.geog_area,
-    submission_rc_info.chief_affl,
-    glacier_static.parent_icemass_id AS parent_id
-   FROM public.glacier_line,
-    public.segment,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_rc_info
-  WHERE ((glacier_line.analysis_id = glacier_dynamic.analysis_id) AND (segment.segment_id = glacier_line.segment_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_line_query_no_people_v3 OWNER TO braup;
-
---
--- Name: glacier_polygons; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.glacier_polygons (
+CREATE TABLE public.glacier_entities (
     analysis_id integer NOT NULL,
-    line_type text NOT NULL,
-    glacier_polys public.geometry NOT NULL,
-    CONSTRAINT enforce_dims_glacier_polys CHECK ((public.st_ndims(glacier_polys) = 3)),
-    CONSTRAINT enforce_geotype_glacier_polys CHECK (((public.geometrytype(glacier_polys) = 'POLYGON'::text) OR (glacier_polys IS NULL))),
-    CONSTRAINT enforce_srid_glacier_polys CHECK ((public.st_srid(glacier_polys) = 4326))
+    line_type smallint NOT NULL,
+    entity_geom public.geometry NOT NULL,
+    CONSTRAINT enforce_srid_entity_geom CHECK ((public.st_srid(entity_geom) = 4326))
 );
 
 
-ALTER TABLE public.glacier_polygons OWNER TO braup;
+ALTER TABLE public.glacier_entities OWNER TO braup;
 
 --
 -- Name: glacier_lines_disp; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.glacier_lines_disp AS
- SELECT glacier_polygons.glacier_polys,
-    glacier_polygons.analysis_id AS anlys_id,
-    glacier_polygons.line_type,
+ SELECT glacier_entities.entity_geom,
+    glacier_entities.analysis_id AS anlys_id,
+    glacier_entities.line_type,
     glacier_dynamic.glacier_id AS glac_id,
     glacier_dynamic.record_status AS rec_status,
     glacier_dynamic.source_timestamp AS src_date
-   FROM public.glacier_polygons,
+   FROM public.glacier_entities,
     public.glacier_dynamic
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
+  WHERE ((glacier_entities.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
 
 
 ALTER TABLE public.glacier_lines_disp OWNER TO postgres;
@@ -922,160 +600,12 @@ CREATE VIEW public.submission_submitter AS
 ALTER TABLE public.submission_submitter OWNER TO postgres;
 
 --
--- Name: glacier_query_full3; Type: VIEW; Schema: public; Owner: braup
---
-
-CREATE VIEW public.glacier_query_full3 AS
- SELECT glacier_polygons.glacier_polys,
-    glacier_polygons.line_type,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.area,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_dynamic.icesheet_conn_level AS conn_lvl,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date,
-    submission_info.process_description AS proc_desc,
-    submission_submitter.surname AS submit_surn,
-    submission_submitter.givennames AS submit_givn,
-    submission_submitter.affiliation AS submit_affl,
-    submission_submitter.url_primary AS submit_url,
-    submission_submitter.country_code AS submit_ccode,
-    submission_anlst_names.surname AS anlst_surn,
-    submission_anlst_names.givennames AS anlst_givn,
-    submission_anlst_names.affiliation AS anlst_affl,
-    submission_anlst_names.url_primary AS anlst_url,
-    submission_anlst_names.country_code AS anlst_ccode,
-    submission_rc_info.chief_surn,
-    submission_rc_info.chief_givn,
-    submission_rc_info.chief_affl,
-    submission_rc_info.url_primary AS rc_url,
-    submission_rc_info.country_code AS rc_ccode,
-    submission_info.rc_id,
-    submission_rc_info.geog_area
-   FROM public.glacier_polygons,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_submitter,
-    public.submission_anlst_names,
-    public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_submitter.submission_id) AND (submission_info.submission_id = submission_anlst_names.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_query_full3 OWNER TO braup;
-
---
--- Name: glacier_query_full3_v2; Type: VIEW; Schema: public; Owner: braup
---
-
-CREATE VIEW public.glacier_query_full3_v2 AS
- SELECT glacier_polygons.glacier_polys,
-    glacier_polygons.line_type,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.area,
-    glacier_dynamic.abzone_area AS abzon_area,
-    glacier_dynamic.speed,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.primary_classification2 AS primclass2,
-    glacier_dynamic.form,
-    glacier_dynamic.frontal_characteristics AS front_char,
-    glacier_dynamic.frontal_characteristics2 AS front_char2,
-    glacier_dynamic.longitudinal_characteristics AS long_char,
-    glacier_dynamic.dominant_mass_source AS mass_src,
-    glacier_dynamic.tongue_activity AS tong_act,
-    glacier_dynamic.tongue_activity2 AS tong_act2,
-    glacier_dynamic.moraine_code1 AS moraine1,
-    glacier_dynamic.moraine_code2 AS moraine2,
-    glacier_dynamic.debris_cover AS debriscov,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.median_elev AS med_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.snowline_elev AS snwln_elev,
-    glacier_dynamic.ela,
-    glacier_dynamic.ela_desc,
-    glacier_dynamic.three_d_desc AS threeddesc,
-    glacier_dynamic.orientation AS aspect,
-    glacier_dynamic.orientation_ablat AS abl_aspect,
-    glacier_dynamic.orientation_accum AS acc_aspect,
-    glacier_dynamic.avg_slope,
-    glacier_dynamic.thickness_m AS thick_m,
-    glacier_dynamic.basin_code,
-    glacier_dynamic.num_basins,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.src_time_end AS src_dt_end,
-    glacier_dynamic.rgiid,
-    glacier_dynamic.rgi_glactype AS rgi_gl_typ,
-    glacier_dynamic.rgi_join_count AS rgi_join_n,
-    glacier_dynamic.rgi_maxlength_m AS rgi_max_l,
-    glacier_dynamic.gtng_o1region AS gtng_o1reg,
-    glacier_dynamic.gtng_o2region AS gtng_o2reg,
-    glacier_dynamic.rgiflag,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_dynamic.icesheet_conn_level AS conn_lvl,
-    glacier_dynamic.surge_type,
-    glacier_dynamic.term_type,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    glacier_static.glacier_status AS glac_stat,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date AS release_dt,
-    submission_info.process_description AS proc_desc,
-    submission_submitter.surname AS submit_surn,
-    submission_submitter.givennames AS submit_givn,
-    submission_submitter.affiliation AS submit_affl,
-    submission_submitter.url_primary AS submit_url,
-    submission_submitter.country_code AS submit_ccode,
-    submission_anlst_names.surname AS anlst_surn,
-    submission_anlst_names.givennames AS anlst_givn,
-    submission_anlst_names.affiliation AS anlst_affl,
-    submission_anlst_names.url_primary AS anlst_url,
-    submission_anlst_names.country_code AS anlst_ccode,
-    submission_rc_info.chief_surn,
-    submission_rc_info.chief_givn,
-    submission_rc_info.chief_affl,
-    submission_rc_info.url_primary AS rc_url,
-    submission_rc_info.country_code AS rc_ccode,
-    submission_info.rc_id,
-    submission_rc_info.geog_area
-   FROM public.glacier_polygons,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_submitter,
-    public.submission_anlst_names,
-    public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_submitter.submission_id) AND (submission_info.submission_id = submission_anlst_names.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_query_full3_v2 OWNER TO braup;
-
---
 -- Name: glacier_query_full3_v3; Type: VIEW; Schema: public; Owner: braup
 --
 
-CREATE VIEW public.glacier_query_full3_v3 AS
- SELECT glacier_polygons.glacier_polys,
-    glacier_polygons.line_type,
+CREATE VIEW public.glacier_query_full AS
+ SELECT glacier_entities.entity_geom,
+    glacier_entities.line_type,
     glacier_dynamic.analysis_id AS anlys_id,
     glacier_dynamic.glacier_id AS glac_id,
     glacier_dynamic.analysis_timestamp AS anlys_time,
@@ -1149,144 +679,25 @@ CREATE VIEW public.glacier_query_full3_v3 AS
     submission_rc_info.country_code AS rc_ccode,
     submission_info.rc_id,
     submission_rc_info.geog_area
-   FROM public.glacier_polygons,
+   FROM public.glacier_entities,
     public.glacier_dynamic,
     public.glacier_static,
     public.submission_info,
     public.submission_submitter,
     public.submission_anlst_names,
     public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_submitter.submission_id) AND (submission_info.submission_id = submission_anlst_names.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
+  WHERE ((glacier_entities.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_submitter.submission_id) AND (submission_info.submission_id = submission_anlst_names.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
 
 
-ALTER TABLE public.glacier_query_full3_v3 OWNER TO braup;
+ALTER TABLE public.glacier_query_full OWNER TO braup;
 
 --
 -- Name: glacier_query_no_people; Type: VIEW; Schema: public; Owner: braup
 --
 
 CREATE VIEW public.glacier_query_no_people AS
- SELECT glacier_polygons.glacier_polys AS glac_polys,
-    glacier_polygons.line_type,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.area,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_dynamic.icesheet_conn_level AS conn_lvl,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    glacier_static.glacier_status AS glac_stat,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date AS release_dt,
-    submission_info.process_description AS proc_desc,
-    submission_info.rc_id,
-    submission_rc_info.geog_area,
-    submission_rc_info.chief_affl,
-    glacier_static.parent_icemass_id AS parent_id
-   FROM public.glacier_polygons,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_query_no_people OWNER TO braup;
-
---
--- Name: glacier_query_no_people_v2; Type: VIEW; Schema: public; Owner: braup
---
-
-CREATE VIEW public.glacier_query_no_people_v2 AS
- SELECT glacier_polygons.glacier_polys AS glac_polys,
-    glacier_polygons.line_type,
-    glacier_dynamic.analysis_id AS anlys_id,
-    glacier_dynamic.glacier_id AS glac_id,
-    glacier_dynamic.analysis_timestamp AS anlys_time,
-    glacier_dynamic.width,
-    glacier_dynamic.length,
-    glacier_dynamic.area,
-    glacier_dynamic.abzone_area AS abzon_area,
-    glacier_dynamic.speed,
-    glacier_dynamic.db_calculated_area AS db_area,
-    glacier_dynamic.primary_classification AS primeclass,
-    glacier_dynamic.primary_classification2 AS primclass2,
-    glacier_dynamic.form,
-    glacier_dynamic.frontal_characteristics AS front_char,
-    glacier_dynamic.frontal_characteristics2 AS front_char2,
-    glacier_dynamic.longitudinal_characteristics AS long_char,
-    glacier_dynamic.dominant_mass_source AS mass_src,
-    glacier_dynamic.tongue_activity AS tong_act,
-    glacier_dynamic.tongue_activity2 AS tong_act2,
-    glacier_dynamic.moraine_code1 AS moraine1,
-    glacier_dynamic.moraine_code2 AS moraine2,
-    glacier_dynamic.debris_cover AS debriscov,
-    glacier_dynamic.min_elev,
-    glacier_dynamic.mean_elev,
-    glacier_dynamic.median_elev AS med_elev,
-    glacier_dynamic.max_elev,
-    glacier_dynamic.snowline_elev AS snwln_elev,
-    glacier_dynamic.ela,
-    glacier_dynamic.ela_desc,
-    glacier_dynamic.three_d_desc AS threeddesc,
-    glacier_dynamic.orientation AS aspect,
-    glacier_dynamic.orientation_accum AS acc_aspect,
-    glacier_dynamic.orientation_ablat AS abl_aspect,
-    glacier_dynamic.avg_slope,
-    glacier_dynamic.thickness_m AS thick_m,
-    glacier_dynamic.basin_code,
-    glacier_dynamic.num_basins,
-    glacier_dynamic.source_timestamp AS src_date,
-    glacier_dynamic.src_time_end AS src_dt_end,
-    glacier_dynamic.rgiid,
-    glacier_dynamic.rgi_glactype AS rgi_gl_typ,
-    glacier_dynamic.rgi_join_count AS rgi_join_n,
-    glacier_dynamic.rgi_maxlength_m AS rgi_max_l,
-    glacier_dynamic.gtng_o1region AS gtng_o1reg,
-    glacier_dynamic.gtng_o2region AS gtng_o2reg,
-    glacier_dynamic.rgiflag,
-    glacier_dynamic.record_status AS rec_status,
-    glacier_dynamic.icesheet_conn_level AS conn_lvl,
-    glacier_dynamic.surge_type,
-    glacier_dynamic.term_type,
-    glacier_static.glacier_name AS glac_name,
-    glacier_static.wgms_id,
-    glacier_static.local_glacier_id AS local_id,
-    glacier_static.glacier_status AS glac_stat,
-    submission_info.submission_id AS subm_id,
-    submission_info.release_okay_date AS release_dt,
-    submission_info.process_description AS proc_desc,
-    submission_info.rc_id,
-    submission_rc_info.geog_area,
-    submission_rc_info.chief_affl,
-    glacier_static.parent_icemass_id AS parent_id
-   FROM public.glacier_polygons,
-    public.glacier_dynamic,
-    public.glacier_static,
-    public.submission_info,
-    public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
-
-
-ALTER TABLE public.glacier_query_no_people_v2 OWNER TO braup;
-
---
--- Name: glacier_query_no_people_v3; Type: VIEW; Schema: public; Owner: braup
---
-
-CREATE VIEW public.glacier_query_no_people_v3 AS
- SELECT glacier_polygons.glacier_polys AS glac_polys,
-    glacier_polygons.line_type,
+ SELECT glacier_entities.entity_geom AS glac_polys,
+    glacier_entities.line_type,
     glacier_dynamic.analysis_id AS anlys_id,
     glacier_dynamic.glacier_id AS glac_id,
     glacier_dynamic.analysis_timestamp AS anlys_time,
@@ -1349,15 +760,15 @@ CREATE VIEW public.glacier_query_no_people_v3 AS
     submission_rc_info.geog_area,
     submission_rc_info.chief_affl,
     glacier_static.parent_icemass_id AS parent_id
-   FROM public.glacier_polygons,
+   FROM public.glacier_entities,
     public.glacier_dynamic,
     public.glacier_static,
     public.submission_info,
     public.submission_rc_info
-  WHERE ((glacier_polygons.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
+  WHERE ((glacier_entities.analysis_id = glacier_dynamic.analysis_id) AND ((glacier_dynamic.glacier_id)::text = (glacier_static.glacier_id)::text) AND (glacier_dynamic.submission_id = submission_info.submission_id) AND (submission_info.submission_id = submission_rc_info.submission_id) AND ((glacier_dynamic.record_status)::text = 'okay'::text));
 
 
-ALTER TABLE public.glacier_query_no_people_v3 OWNER TO braup;
+ALTER TABLE public.glacier_query_no_people OWNER TO braup;
 
 --
 -- Name: glacier_reference; Type: TABLE; Schema: public; Owner: braup
@@ -1376,7 +787,8 @@ ALTER TABLE public.glacier_reference OWNER TO braup;
 --
 
 CREATE SEQUENCE public.glacier_static_id_num_seq
-    START WITH 141688
+    -- START WITH 141688
+    START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
@@ -1405,77 +817,6 @@ ALTER TABLE public.glacier_static_id_num_seq1 OWNER TO braup;
 
 ALTER SEQUENCE public.glacier_static_id_num_seq1 OWNED BY public.glacier_static.id_num;
 
-
---
--- Name: glims_aster_footprints; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.glims_aster_footprints (
-    aster_id integer NOT NULL,
-    granule_id character varying(50) NOT NULL,
-    edc_id integer NOT NULL,
-    insert_time timestamp without time zone NOT NULL,
-    browse_id character varying(100),
-    short_name character varying(10),
-    version_id integer,
-    size_mb character varying(30),
-    day_or_night character varying(10),
-    production_date timestamp without time zone,
-    capture_time time without time zone,
-    capture_date date,
-    missing_data integer,
-    out_of_bounds integer,
-    interpolated integer,
-    cloud_cover integer,
-    band12 character varying(30),
-    band8 character varying(30),
-    azimuth_angle character varying,
-    processing_center character varying(10),
-    aster_gains character varying(100),
-    band9 character varying(30),
-    band1 character varying(30),
-    radiometricdbversion character varying(30),
-    lr_cloud_cover integer,
-    band2 character varying(30),
-    band5 character varying(30),
-    ll_cloud_cover integer,
-    band10 character varying(30),
-    vnir2_ob_mode character varying(5),
-    band13 character varying(30),
-    cloud_coverage integer,
-    band6 character varying(30),
-    resampling character varying(30),
-    swir_observationmode character varying(5),
-    generation_date character varying(30),
-    band3b character varying(30),
-    receiving_center character varying(30),
-    band11 character varying(30),
-    band14 character varying(30),
-    band4 character varying(30),
-    ul_cloud_cov integer,
-    band7 character varying(30),
-    ur_cloud_cov integer,
-    elevation_angle character varying(50),
-    tir_observationmode character varying(5),
-    band3n character varying(30),
-    dar_id character varying(80),
-    map_projection character varying(50),
-    geometric_dbversion character varying(50),
-    vnir1_ob_mode character varying(5),
-    swir_angle character varying(30),
-    vnir_angle character varying(30),
-    scene_orient_angle character varying(30),
-    tir_angle character varying(50),
-    glims_footprints public.geometry,
-    edc_browse_url character varying(120),
-    browse_retrieved boolean,
-    CONSTRAINT enforce_dims_glims_footprints CHECK ((public.st_ndims(glims_footprints) = 2)),
-    CONSTRAINT enforce_geotype_glims_footprints CHECK (((public.geometrytype(glims_footprints) = 'POLYGON'::text) OR (glims_footprints IS NULL))),
-    CONSTRAINT enforce_srid_glims_footprints CHECK ((public.st_srid(glims_footprints) = 4326))
-);
-
-
-ALTER TABLE public.glims_aster_footprints OWNER TO braup;
 
 --
 -- Name: glims_field_dictionary; Type: TABLE; Schema: public; Owner: braup
@@ -1509,28 +850,28 @@ ALTER TABLE public.glims_table_fields OWNER TO braup;
 -- Name: group_state_dates; Type: TABLE; Schema: public; Owner: braup
 --
 
-CREATE TABLE public.group_state_dates (
-    group_id integer,
-    state_id integer NOT NULL,
-    rep_date timestamp without time zone
-);
-
-
-ALTER TABLE public.group_state_dates OWNER TO braup;
-
---
--- Name: groups; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.groups (
-    group_id integer NOT NULL,
-    group_poly public.geometry NOT NULL,
-    CONSTRAINT enforce_dims_group_poly CHECK ((public.st_ndims(group_poly) = 2)),
-    CONSTRAINT enforce_srid_group_poly CHECK ((public.st_srid(group_poly) = 4326))
-);
-
-
-ALTER TABLE public.groups OWNER TO braup;
+-- CREATE TABLE public.group_state_dates (
+--     group_id integer,
+--     state_id integer NOT NULL,
+--     rep_date timestamp without time zone
+-- );
+-- 
+-- 
+-- ALTER TABLE public.group_state_dates OWNER TO braup;
+-- 
+-- --
+-- -- Name: groups; Type: TABLE; Schema: public; Owner: braup
+-- --
+-- 
+-- CREATE TABLE public.groups (
+--     group_id integer NOT NULL,
+--     group_poly public.geometry NOT NULL,
+--     CONSTRAINT enforce_dims_group_poly CHECK ((public.st_ndims(group_poly) = 2)),
+--     CONSTRAINT enforce_srid_group_poly CHECK ((public.st_srid(group_poly) = 4326))
+-- );
+-- 
+-- 
+-- ALTER TABLE public.groups OWNER TO braup;
 
 --
 -- Name: gtng_order1regions; Type: TABLE; Schema: public; Owner: braup
@@ -1603,45 +944,6 @@ ALTER TABLE public.gtng_order2regions_gid_seq OWNER TO braup;
 
 ALTER SEQUENCE public.gtng_order2regions_gid_seq OWNED BY public.gtng_order2regions.gid;
 
-
---
--- Name: himalayan_dar_2007; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.himalayan_dar_2007 (
-    gid integer NOT NULL,
-    id integer,
-    area_km__2 double precision,
-    the_geom public.geometry,
-    CONSTRAINT enforce_dims_the_geom CHECK ((public.st_ndims(the_geom) = 2)),
-    CONSTRAINT enforce_geotype_the_geom CHECK (((public.geometrytype(the_geom) = 'MULTIPOLYGON'::text) OR (the_geom IS NULL))),
-    CONSTRAINT enforce_srid_the_geom CHECK ((public.st_srid(the_geom) = 4326))
-);
-
-
-ALTER TABLE public.himalayan_dar_2007 OWNER TO braup;
-
---
--- Name: himalayan_dar_2007_gid_seq; Type: SEQUENCE; Schema: public; Owner: braup
---
-
-CREATE SEQUENCE public.himalayan_dar_2007_gid_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.himalayan_dar_2007_gid_seq OWNER TO braup;
-
---
--- Name: himalayan_dar_2007_gid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: braup
---
-
-ALTER SEQUENCE public.himalayan_dar_2007_gid_seq OWNED BY public.himalayan_dar_2007.gid;
-
-
 --
 -- Name: image; Type: TABLE; Schema: public; Owner: braup
 --
@@ -1665,25 +967,12 @@ CREATE TABLE public.image (
     projection text,
     image_center_loc public.geometry,
     comment text,
-    CONSTRAINT enforce_dims_image_center_loc CHECK ((public.st_ndims(image_center_loc) = 3)),
     CONSTRAINT enforce_geotype_image_center_loc CHECK (((public.geometrytype(image_center_loc) = 'POINT'::text) OR (image_center_loc IS NULL))),
     CONSTRAINT enforce_srid_image_center_loc CHECK ((public.st_srid(image_center_loc) = 4326))
 );
 
 
 ALTER TABLE public.image OWNER TO braup;
-
---
--- Name: image_band; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.image_band (
-    band_id integer NOT NULL,
-    image_id integer NOT NULL
-);
-
-
-ALTER TABLE public.image_band OWNER TO braup;
 
 --
 -- Name: instrument; Type: TABLE; Schema: public; Owner: braup
@@ -1770,49 +1059,6 @@ CREATE TABLE public.map_metadata (
 
 
 ALTER TABLE public.map_metadata OWNER TO braup;
-
---
--- Name: mytestview; Type: VIEW; Schema: public; Owner: braup
---
-
-CREATE VIEW public.mytestview AS
- SELECT gs.glacier_id AS gid,
-    gd.analysis_id AS aid,
-    gs.glacier_name AS gname
-   FROM public.glacier_static gs,
-    public.glacier_dynamic gd
-  WHERE ((gs.glacier_id)::text = (gd.glacier_id)::text);
-
-
-ALTER TABLE public.mytestview OWNER TO braup;
-
---
--- Name: point_measurement; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.point_measurement (
-    pnt_meas_id integer NOT NULL,
-    glacier_id character varying(20) NOT NULL,
-    pnt_timestamp timestamp without time zone NOT NULL,
-    pnt_elev real,
-    pnt_label character varying(20),
-    pnt_value real,
-    pnt_lon_unc real,
-    pnt_lat_unc real,
-    pnt_elev_unc real,
-    pnt_value_unc real,
-    pnt_unit character varying(10),
-    comment text,
-    record_status character varying(20),
-    pnt_loc public.geometry,
-    submission_id integer,
-    CONSTRAINT enforce_dims_pnt_loc CHECK ((public.st_ndims(pnt_loc) = 2)),
-    CONSTRAINT enforce_geotype_pnt_loc CHECK (((public.geometrytype(pnt_loc) = 'POINT'::text) OR (pnt_loc IS NULL))),
-    CONSTRAINT enforce_srid_pnt_loc CHECK ((public.st_srid(pnt_loc) = 4326))
-);
-
-
-ALTER TABLE public.point_measurement OWNER TO braup;
 
 --
 -- Name: primary_classification_valids; Type: TABLE; Schema: public; Owner: braup
@@ -2002,133 +1248,6 @@ ALTER TABLE public.ref_doc_id_seq OWNER TO braup;
 
 ALTER SEQUENCE public.ref_doc_id_seq OWNED BY public.reference_document.reference_doc_id;
 
-
---
--- Name: reference_point; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.reference_point (
-    ref_pnt_id character varying(20) NOT NULL,
-    ref_pnt_name character varying(50),
-    ref_pnt_desc text NOT NULL,
-    ref_pnt_lat_unc real,
-    ref_pnt_lon_unc real,
-    ref_pnt_elev real,
-    ref_pnt_elev_unc real,
-    ref_pnt_chip_location text,
-    ref_pnt_chip_src integer,
-    ref_pnt_chip_num_bands integer,
-    ref_pnt_chip_bands character varying(30),
-    ref_pnt_img_line integer,
-    ref_pnt_img_samp integer,
-    ref_pnt_chip_line double precision,
-    ref_pnt_chip_samp double precision,
-    reference_doc_id integer,
-    ref_pnt_loc public.geometry,
-    CONSTRAINT enforce_dims_ref_pnt_loc CHECK ((public.st_ndims(ref_pnt_loc) = 2)),
-    CONSTRAINT enforce_geotype_ref_pnt_loc CHECK (((public.geometrytype(ref_pnt_loc) = 'POINT'::text) OR (ref_pnt_loc IS NULL))),
-    CONSTRAINT enforce_srid_ref_pnt_loc CHECK ((public.st_srid(ref_pnt_loc) = 4326))
-);
-
-
-ALTER TABLE public.reference_point OWNER TO braup;
-
---
--- Name: rgi_users; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.rgi_users (
-    id integer NOT NULL,
-    surname character varying(50),
-    givenname character varying(50),
-    institution character varying(80),
-    email character varying(40),
-    intendeduse text,
-    use_time timestamp with time zone
-);
-
-
-ALTER TABLE public.rgi_users OWNER TO braup;
-
---
--- Name: rgi_users_id_seq; Type: SEQUENCE; Schema: public; Owner: braup
---
-
-CREATE SEQUENCE public.rgi_users_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.rgi_users_id_seq OWNER TO braup;
-
---
--- Name: rgi_users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: braup
---
-
-ALTER SEQUENCE public.rgi_users_id_seq OWNED BY public.rgi_users.id;
-
-
---
--- Name: starpolys; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.starpolys (
-    gid integer NOT NULL,
-    area double precision,
-    perimeter double precision,
-    ice_buff2_ bigint,
-    ice_buff2___3 bigint,
-    begindoy integer,
-    enddoy integer,
-    title character varying,
-    maxsunangl double precision,
-    maxcloudfr integer,
-    g1 integer,
-    g2 integer,
-    g3 integer,
-    g4 integer,
-    g5 integer,
-    g6 integer,
-    g7 integer,
-    g8 integer,
-    g9 integer,
-    fragflag integer,
-    instmode integer,
-    urgentf integer,
-    minlookang double precision,
-    the_geom public.geometry,
-    CONSTRAINT enforce_dims_the_geom CHECK ((public.st_ndims(the_geom) = 2)),
-    CONSTRAINT enforce_geotype_the_geom CHECK (((public.geometrytype(the_geom) = 'MULTIPOLYGON'::text) OR (the_geom IS NULL))),
-    CONSTRAINT enforce_srid_the_geom CHECK ((public.st_srid(the_geom) = 4326))
-);
-
-
-ALTER TABLE public.starpolys OWNER TO braup;
-
---
--- Name: starpolys_gid_seq; Type: SEQUENCE; Schema: public; Owner: braup
---
-
-CREATE SEQUENCE public.starpolys_gid_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.starpolys_gid_seq OWNER TO braup;
-
---
--- Name: starpolys_gid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: braup
---
-
-ALTER SEQUENCE public.starpolys_gid_seq OWNED BY public.starpolys.gid;
-
-
 --
 -- Name: status_def; Type: TABLE; Schema: public; Owner: braup
 --
@@ -2143,37 +1262,6 @@ CREATE TABLE public.status_def (
 ALTER TABLE public.status_def OWNER TO braup;
 
 --
--- Name: testtable; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.testtable (
-    name text,
-    nums integer[],
-    matrix integer[]
-);
-
-
-ALTER TABLE public.testtable OWNER TO braup;
-
---
--- Name: tiepoint_region; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.tiepoint_region (
-    tiepoint_region_id integer NOT NULL,
-    rc_id integer,
-    tiepoint_region_timestamp timestamp without time zone,
-    comment text,
-    tiepoint_outline public.geometry,
-    CONSTRAINT enforce_dims_tiepoint_outline CHECK ((public.st_ndims(tiepoint_outline) = 2)),
-    CONSTRAINT enforce_geotype_tiepoint_outline CHECK (((public.geometrytype(tiepoint_outline) = 'POLYGON'::text) OR (tiepoint_outline IS NULL))),
-    CONSTRAINT enforce_srid_tiepoint_outline CHECK ((public.st_srid(tiepoint_outline) = 4326))
-);
-
-
-ALTER TABLE public.tiepoint_region OWNER TO braup;
-
---
 -- Name: tongue_activity_valids; Type: TABLE; Schema: public; Owner: braup
 --
 
@@ -2184,49 +1272,6 @@ CREATE TABLE public.tongue_activity_valids (
 
 
 ALTER TABLE public.tongue_activity_valids OWNER TO braup;
-
---
--- Name: vector; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.vector (
-    vel_set_id integer NOT NULL,
-    first_pnt_loc public.geometry,
-    second_pnt_loc public.geometry,
-    CONSTRAINT enforce_dims_first_pnt_loc CHECK ((public.st_ndims(first_pnt_loc) = 3)),
-    CONSTRAINT enforce_dims_second_pnt_loc CHECK ((public.st_ndims(second_pnt_loc) = 3)),
-    CONSTRAINT enforce_geotype_first_pnt_loc CHECK (((public.geometrytype(first_pnt_loc) = 'POINT'::text) OR (first_pnt_loc IS NULL))),
-    CONSTRAINT enforce_geotype_second_pnt_loc CHECK (((public.geometrytype(second_pnt_loc) = 'POINT'::text) OR (second_pnt_loc IS NULL))),
-    CONSTRAINT enforce_srid_first_pnt_loc CHECK ((public.st_srid(first_pnt_loc) = 4326)),
-    CONSTRAINT enforce_srid_second_pnt_loc CHECK ((public.st_srid(second_pnt_loc) = 4326))
-);
-
-
-ALTER TABLE public.vector OWNER TO braup;
-
---
--- Name: vector_set; Type: TABLE; Schema: public; Owner: braup
---
-
-CREATE TABLE public.vector_set (
-    vel_set_id integer NOT NULL,
-    analysis_id1 integer NOT NULL,
-    analysis_id2 integer NOT NULL,
-    num_vecs integer,
-    loc_unc_first_lon real,
-    loc_unc_first_lat real,
-    glob_unc_first_lon real,
-    glob_unc_first_lat real,
-    loc_unc_second_lon real,
-    loc_unc_second_lat real,
-    glob_unc_second_lon real,
-    glob_unc_second_lat real,
-    record_status character varying(20),
-    submission_id integer
-);
-
-
-ALTER TABLE public.vector_set OWNER TO braup;
 
 --
 -- Name: country gid; Type: DEFAULT; Schema: public; Owner: braup
@@ -2271,49 +1316,11 @@ ALTER TABLE ONLY public.reference_document ALTER COLUMN reference_doc_id SET DEF
 
 
 --
--- Name: rgi_users id; Type: DEFAULT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.rgi_users ALTER COLUMN id SET DEFAULT nextval('public.rgi_users_id_seq'::regclass);
-
-
---
--- Name: starpolys gid; Type: DEFAULT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.starpolys ALTER COLUMN gid SET DEFAULT nextval('public.starpolys_gid_seq'::regclass);
-
-
---
--- Name: ancillary_data ancillary_data_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.ancillary_data
-    ADD CONSTRAINT ancillary_data_pkey PRIMARY KEY (anc_data_id);
-
-
---
 -- Name: area_histogram area_histogram_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
 --
 
 ALTER TABLE ONLY public.area_histogram
     ADD CONSTRAINT area_histogram_pkey PRIMARY KEY (area_histogram_id);
-
-
---
--- Name: aster_footprints aster_footprints_pkey; Type: CONSTRAINT; Schema: public; Owner: aster_metadata
---
-
-ALTER TABLE ONLY public.aster_footprints
-    ADD CONSTRAINT aster_footprints_pkey PRIMARY KEY (aster_id);
-
-
---
--- Name: band band_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.band
-    ADD CONSTRAINT band_pkey PRIMARY KEY (band_id);
 
 
 --
@@ -2330,14 +1337,6 @@ ALTER TABLE ONLY public.country
 
 ALTER TABLE ONLY public.country
     ADD CONSTRAINT country_pkey PRIMARY KEY (country_code2);
-
-
---
--- Name: debris_cover_valids debris_cover_valids_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.debris_cover_valids
-    ADD CONSTRAINT debris_cover_valids_pkey PRIMARY KEY (debris_cover);
 
 
 --
@@ -2397,19 +1396,11 @@ ALTER TABLE ONLY public.glacier_static
 
 
 --
--- Name: glims_aster_footprints glims_aster_footprints_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.glims_aster_footprints
-    ADD CONSTRAINT glims_aster_footprints_pkey PRIMARY KEY (aster_id);
-
-
---
 -- Name: groups groups_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
 --
 
-ALTER TABLE ONLY public.groups
-    ADD CONSTRAINT groups_pkey PRIMARY KEY (group_id);
+-- ALTER TABLE ONLY public.groups
+--     ADD CONSTRAINT groups_pkey PRIMARY KEY (group_id);
 
 
 --
@@ -2426,14 +1417,6 @@ ALTER TABLE ONLY public.gtng_order1regions
 
 ALTER TABLE ONLY public.gtng_order2regions
     ADD CONSTRAINT gtng_order2regions_pkey PRIMARY KEY (gid);
-
-
---
--- Name: himalayan_dar_2007 himalayan_dar_2007_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.himalayan_dar_2007
-    ADD CONSTRAINT himalayan_dar_2007_pkey PRIMARY KEY (gid);
 
 
 --
@@ -2477,14 +1460,6 @@ ALTER TABLE ONLY public.people
 
 
 --
--- Name: point_measurement point_measurement_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.point_measurement
-    ADD CONSTRAINT point_measurement_pkey PRIMARY KEY (pnt_meas_id);
-
-
---
 -- Name: primary_classification_valids primary_classification_valids_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
 --
 
@@ -2501,35 +1476,12 @@ ALTER TABLE ONLY public.reference_document
 
 
 --
--- Name: reference_point reference_point_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.reference_point
-    ADD CONSTRAINT reference_point_pkey PRIMARY KEY (ref_pnt_id);
-
-
---
 -- Name: regional_centers regional_centers_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
 --
 
 ALTER TABLE ONLY public.regional_centers
     ADD CONSTRAINT regional_centers_pkey PRIMARY KEY (rc_id);
 
-
---
--- Name: segment segment_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.segment
-    ADD CONSTRAINT segment_pkey PRIMARY KEY (segment_id);
-
-
---
--- Name: starpolys starpolys_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.starpolys
-    ADD CONSTRAINT starpolys_pkey PRIMARY KEY (gid);
 
 
 --
@@ -2541,56 +1493,11 @@ ALTER TABLE ONLY public.submission_info
 
 
 --
--- Name: tiepoint_region tiepoint_region_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.tiepoint_region
-    ADD CONSTRAINT tiepoint_region_pkey PRIMARY KEY (tiepoint_region_id);
-
-
---
 -- Name: tongue_activity_valids tongue_activity_valids_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
 --
 
 ALTER TABLE ONLY public.tongue_activity_valids
     ADD CONSTRAINT tongue_activity_valids_pkey PRIMARY KEY (tongue_activity);
-
-
---
--- Name: vector_set vector_set_pkey; Type: CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.vector_set
-    ADD CONSTRAINT vector_set_pkey PRIMARY KEY (vel_set_id);
-
-
---
--- Name: analyses_groups_analysis_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX analyses_groups_analysis_id_index ON public.analyses_groups USING btree (analysis_id);
-
-
---
--- Name: analyses_groups_group_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX analyses_groups_group_id_index ON public.analyses_groups USING btree (group_id);
-
-
---
--- Name: analyses_groups_state_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX analyses_groups_state_id_index ON public.analyses_groups USING btree (state_id);
-
-
---
--- Name: analysis_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX analysis_id_index ON public.glacier_line USING btree (analysis_id);
-
 
 --
 -- Name: cntry_name_index; Type: INDEX; Schema: public; Owner: braup
@@ -2635,19 +1542,18 @@ CREATE INDEX glacier_dynamic_source_timestamp ON public.glacier_dynamic USING bt
 
 
 --
--- Name: glacier_poly_index; Type: INDEX; Schema: public; Owner: braup
+-- Name: glacier_ent_index; Type: INDEX; Schema: public; Owner: braup
 --
 
-CREATE INDEX glacier_poly_index ON public.glacier_polygons USING gist (glacier_polys);
+CREATE INDEX glacier_ent_index ON public.glacier_entities USING gist (entity_geom);
 
-ALTER TABLE public.glacier_polygons CLUSTER ON glacier_poly_index;
-
+ALTER TABLE public.glacier_entities CLUSTER ON glacier_ent_index;
 
 --
--- Name: glacier_polygons_anal_id_index; Type: INDEX; Schema: public; Owner: braup
+-- Name: glacier_entities_anal_id_index; Type: INDEX; Schema: public; Owner: braup
 --
 
-CREATE INDEX glacier_polygons_anal_id_index ON public.glacier_polygons USING btree (analysis_id);
+CREATE INDEX glacier_entities_anal_id_index ON public.glacier_entities USING btree (analysis_id);
 
 
 --
@@ -2655,44 +1561,6 @@ CREATE INDEX glacier_polygons_anal_id_index ON public.glacier_polygons USING btr
 --
 
 CREATE INDEX glacier_static_point_index ON public.glacier_static USING gist (glac_static_points);
-
-
---
--- Name: glims_aster_ftprnts_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX glims_aster_ftprnts_index ON public.glims_aster_footprints USING gist (glims_footprints);
-
-
---
--- Name: group_poly_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX group_poly_index ON public.groups USING gist (group_poly);
-
-ALTER TABLE public.groups CLUSTER ON group_poly_index;
-
-
---
--- Name: group_state_dates_group_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX group_state_dates_group_id_index ON public.group_state_dates USING btree (group_id);
-
-
---
--- Name: group_state_dates_state_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX group_state_dates_state_id_index ON public.group_state_dates USING btree (state_id);
-
-
---
--- Name: groups_group_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX groups_group_id_index ON public.groups USING btree (group_id);
-
 
 --
 -- Name: gtng_order1regions_geom_idx; Type: INDEX; Schema: public; Owner: braup
@@ -2765,27 +1633,6 @@ CREATE INDEX rc_poly_index ON public.regional_centers USING gist (regional_cente
 
 
 --
--- Name: segment_id_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX segment_id_index ON public.glacier_line USING btree (segment_id);
-
-
---
--- Name: segment_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX segment_index ON public.segment USING gist (segment_lines);
-
-
---
--- Name: starpoly_index; Type: INDEX; Schema: public; Owner: braup
---
-
-CREATE INDEX starpoly_index ON public.starpolys USING gist (the_geom);
-
-
---
 -- Name: submission_info_rc_id_index; Type: INDEX; Schema: public; Owner: braup
 --
 
@@ -2805,23 +1652,6 @@ CREATE INDEX submission_info_rel_okay_date_index ON public.submission_info USING
 
 CREATE INDEX submission_info_submitter_id_index ON public.submission_info USING btree (submitter_id);
 
-
---
--- Name: analyses_groups analyses_groups_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.analyses_groups
-    ADD CONSTRAINT analyses_groups_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.glacier_dynamic(analysis_id);
-
-
---
--- Name: analyses_groups analyses_groups_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.analyses_groups
-    ADD CONSTRAINT analyses_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(group_id);
-
-
 --
 -- Name: area_histogram area_histogram_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
 --
@@ -2837,29 +1667,6 @@ ALTER TABLE ONLY public.area_histogram
 ALTER TABLE ONLY public.area_histogram_data
     ADD CONSTRAINT area_histogram_data_area_histogram_id_fkey FOREIGN KEY (area_histogram_id) REFERENCES public.area_histogram(area_histogram_id);
 
-
---
--- Name: band band_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.band
-    ADD CONSTRAINT band_instrument_id_fkey FOREIGN KEY (instrument_id) REFERENCES public.instrument(instrument_id);
-
-
---
--- Name: glacier_ancillary_info glacier_ancillary_info_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.glacier_ancillary_info
-    ADD CONSTRAINT glacier_ancillary_info_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.glacier_dynamic(analysis_id);
-
-
---
--- Name: glacier_ancillary_info glacier_ancillary_info_data_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.glacier_ancillary_info
-    ADD CONSTRAINT glacier_ancillary_info_data_id_fkey FOREIGN KEY (anc_data_id) REFERENCES public.ancillary_data(anc_data_id);
 
 
 --
@@ -2927,22 +1734,6 @@ ALTER TABLE ONLY public.glacier_image_info
 
 
 --
--- Name: glacier_line glacier_line_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.glacier_line
-    ADD CONSTRAINT glacier_line_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.glacier_dynamic(analysis_id);
-
-
---
--- Name: glacier_line glacier_line_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.glacier_line
-    ADD CONSTRAINT glacier_line_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.segment(segment_id);
-
-
---
 -- Name: glacier_map_info glacier_map_info_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
 --
 
@@ -2959,11 +1750,11 @@ ALTER TABLE ONLY public.glacier_map_info
 
 
 --
--- Name: glacier_polygons glacier_polygons_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
+-- Name: glacier_entities glacier_entities_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
 --
 
-ALTER TABLE ONLY public.glacier_polygons
-    ADD CONSTRAINT glacier_polygons_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.glacier_dynamic(analysis_id);
+ALTER TABLE ONLY public.glacier_entities
+    ADD CONSTRAINT glacier_entities_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.glacier_dynamic(analysis_id);
 
 
 --
@@ -2991,30 +1782,6 @@ ALTER TABLE ONLY public.glacier_static
 
 
 --
--- Name: group_state_dates group_state_dates_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.group_state_dates
-    ADD CONSTRAINT group_state_dates_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(group_id);
-
-
---
--- Name: image_band image_band_band_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.image_band
-    ADD CONSTRAINT image_band_band_id_fkey FOREIGN KEY (band_id) REFERENCES public.band(band_id);
-
-
---
--- Name: image_band image_band_image_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.image_band
-    ADD CONSTRAINT image_band_image_id_fkey FOREIGN KEY (image_id) REFERENCES public.image(image_id);
-
-
---
 -- Name: image image_instrument_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
 --
 
@@ -3037,23 +1804,6 @@ ALTER TABLE ONLY public.image
 ALTER TABLE ONLY public.people
     ADD CONSTRAINT people_country_code_fkey FOREIGN KEY (country_code) REFERENCES public.country(country_code2);
 
-
---
--- Name: point_measurement point_measurement_glacier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.point_measurement
-    ADD CONSTRAINT point_measurement_glacier_id_fkey FOREIGN KEY (glacier_id) REFERENCES public.glacier_static(glacier_id);
-
-
---
--- Name: point_measurement point_measurement_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.point_measurement
-    ADD CONSTRAINT point_measurement_submission_id_fkey FOREIGN KEY (submission_id) REFERENCES public.submission_info(submission_id);
-
-
 --
 -- Name: rc_people rc_people_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
 --
@@ -3068,22 +1818,6 @@ ALTER TABLE ONLY public.rc_people
 
 ALTER TABLE ONLY public.rc_people
     ADD CONSTRAINT rc_people_rc_id_fkey FOREIGN KEY (rc_id) REFERENCES public.regional_centers(rc_id);
-
-
---
--- Name: reference_point reference_point_ref_pnt_chip_src_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.reference_point
-    ADD CONSTRAINT reference_point_ref_pnt_chip_src_fkey FOREIGN KEY (ref_pnt_chip_src) REFERENCES public.instrument(instrument_id);
-
-
---
--- Name: reference_point reference_point_reference_doc_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.reference_point
-    ADD CONSTRAINT reference_point_reference_doc_id_fkey FOREIGN KEY (reference_doc_id) REFERENCES public.reference_document(reference_doc_id);
 
 
 --
@@ -3143,65 +1877,16 @@ ALTER TABLE ONLY public.submission_info
 
 
 --
--- Name: tiepoint_region tiepoint_region_rc_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.tiepoint_region
-    ADD CONSTRAINT tiepoint_region_rc_id_fkey FOREIGN KEY (rc_id) REFERENCES public.regional_centers(rc_id);
-
-
---
--- Name: vector_set vector_set_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.vector_set
-    ADD CONSTRAINT vector_set_submission_id_fkey FOREIGN KEY (submission_id) REFERENCES public.submission_info(submission_id);
-
-
---
--- Name: vector vector_vel_set_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: braup
---
-
-ALTER TABLE ONLY public.vector
-    ADD CONSTRAINT vector_vel_set_id_fkey FOREIGN KEY (vel_set_id) REFERENCES public.vector_set(vel_set_id);
-
-
---
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
 --
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT ALL ON SCHEMA public TO braup;
 GRANT USAGE ON SCHEMA public TO glims_rc;
-GRANT USAGE ON SCHEMA public TO aster_metadata;
 GRANT USAGE ON SCHEMA public TO glims_ro;
 GRANT ALL ON SCHEMA public TO glims_rw;
 GRANT USAGE ON SCHEMA public TO glu;
 GRANT USAGE ON SCHEMA public TO rgi_role;
-
-
---
--- Name: TABLE analyses_groups; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.analyses_groups TO glims_ro;
-GRANT ALL ON TABLE public.analyses_groups TO glims_rw;
-GRANT SELECT ON TABLE public.analyses_groups TO glims_rc;
-GRANT SELECT ON TABLE public.analyses_groups TO glu;
-GRANT SELECT ON TABLE public.analyses_groups TO rgi_role;
-
-
---
--- Name: TABLE ancillary_data; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.ancillary_data TO glims_rw;
-GRANT SELECT ON TABLE public.ancillary_data TO glims_rc;
-GRANT SELECT ON TABLE public.ancillary_data TO glims_ro;
-GRANT SELECT ON TABLE public.ancillary_data TO aster_metadata;
-GRANT SELECT ON TABLE public.ancillary_data TO glu;
-GRANT SELECT ON TABLE public.ancillary_data TO rgi_role;
-
 
 --
 -- Name: TABLE area_histogram; Type: ACL; Schema: public; Owner: braup
@@ -3210,7 +1895,6 @@ GRANT SELECT ON TABLE public.ancillary_data TO rgi_role;
 GRANT ALL ON TABLE public.area_histogram TO glims_rw;
 GRANT SELECT ON TABLE public.area_histogram TO glims_rc;
 GRANT SELECT ON TABLE public.area_histogram TO glims_ro;
-GRANT SELECT ON TABLE public.area_histogram TO aster_metadata;
 GRANT SELECT ON TABLE public.area_histogram TO glu;
 GRANT SELECT ON TABLE public.area_histogram TO rgi_role;
 
@@ -3222,33 +1906,8 @@ GRANT SELECT ON TABLE public.area_histogram TO rgi_role;
 GRANT ALL ON TABLE public.area_histogram_data TO glims_rw;
 GRANT SELECT ON TABLE public.area_histogram_data TO glims_rc;
 GRANT SELECT ON TABLE public.area_histogram_data TO glims_ro;
-GRANT SELECT ON TABLE public.area_histogram_data TO aster_metadata;
 GRANT SELECT ON TABLE public.area_histogram_data TO glu;
 GRANT SELECT ON TABLE public.area_histogram_data TO rgi_role;
-
-
---
--- Name: TABLE aster_footprints; Type: ACL; Schema: public; Owner: aster_metadata
---
-
-GRANT SELECT ON TABLE public.aster_footprints TO glims_ro;
-GRANT ALL ON TABLE public.aster_footprints TO braup;
-GRANT SELECT ON TABLE public.aster_footprints TO glu;
-GRANT SELECT ON TABLE public.aster_footprints TO rgi_role;
-GRANT SELECT ON TABLE public.aster_footprints TO glims_rc;
-GRANT ALL ON TABLE public.aster_footprints TO glims_rw;
-
-
---
--- Name: TABLE band; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.band TO glims_rw;
-GRANT SELECT ON TABLE public.band TO glims_rc;
-GRANT SELECT ON TABLE public.band TO glims_ro;
-GRANT SELECT ON TABLE public.band TO aster_metadata;
-GRANT SELECT ON TABLE public.band TO glu;
-GRANT SELECT ON TABLE public.band TO rgi_role;
 
 
 --
@@ -3258,7 +1917,6 @@ GRANT SELECT ON TABLE public.band TO rgi_role;
 GRANT ALL ON TABLE public.country TO glims_rw;
 GRANT SELECT ON TABLE public.country TO glims_rc;
 GRANT SELECT ON TABLE public.country TO glims_ro;
-GRANT SELECT ON TABLE public.country TO aster_metadata;
 GRANT SELECT ON TABLE public.country TO glu;
 GRANT SELECT ON TABLE public.country TO rgi_role;
 
@@ -3270,31 +1928,6 @@ GRANT SELECT ON TABLE public.country TO rgi_role;
 GRANT ALL ON SEQUENCE public.country_gid_seq TO glims_rw;
 GRANT SELECT ON SEQUENCE public.country_gid_seq TO glims_ro;
 
-
---
--- Name: TABLE debris_cover_valids; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.debris_cover_valids TO glims_rw;
-GRANT SELECT ON TABLE public.debris_cover_valids TO glims_rc;
-GRANT SELECT ON TABLE public.debris_cover_valids TO glims_ro;
-GRANT SELECT ON TABLE public.debris_cover_valids TO aster_metadata;
-GRANT SELECT ON TABLE public.debris_cover_valids TO glu;
-GRANT SELECT ON TABLE public.debris_cover_valids TO rgi_role;
-
-
---
--- Name: TABLE debris_distribution_valids; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.debris_distribution_valids TO glims_rw;
-GRANT SELECT ON TABLE public.debris_distribution_valids TO glims_rc;
-GRANT SELECT ON TABLE public.debris_distribution_valids TO glims_ro;
-GRANT SELECT ON TABLE public.debris_distribution_valids TO aster_metadata;
-GRANT SELECT ON TABLE public.debris_distribution_valids TO glu;
-GRANT SELECT ON TABLE public.debris_distribution_valids TO rgi_role;
-
-
 --
 -- Name: TABLE dominant_mass_source_valids; Type: ACL; Schema: public; Owner: braup
 --
@@ -3302,7 +1935,6 @@ GRANT SELECT ON TABLE public.debris_distribution_valids TO rgi_role;
 GRANT ALL ON TABLE public.dominant_mass_source_valids TO glims_rw;
 GRANT SELECT ON TABLE public.dominant_mass_source_valids TO glims_rc;
 GRANT SELECT ON TABLE public.dominant_mass_source_valids TO glims_ro;
-GRANT SELECT ON TABLE public.dominant_mass_source_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.dominant_mass_source_valids TO glu;
 GRANT SELECT ON TABLE public.dominant_mass_source_valids TO rgi_role;
 
@@ -3314,7 +1946,6 @@ GRANT SELECT ON TABLE public.dominant_mass_source_valids TO rgi_role;
 GRANT ALL ON TABLE public.glacier_static TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_static TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_static TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_static TO aster_metadata;
 GRANT SELECT ON TABLE public.glacier_static TO glu;
 GRANT SELECT ON TABLE public.glacier_static TO rgi_role;
 
@@ -3333,7 +1964,6 @@ GRANT SELECT ON TABLE public.extinct_glaciers_view TO glims_ro;
 GRANT ALL ON TABLE public.form_valids TO glims_rw;
 GRANT SELECT ON TABLE public.form_valids TO glims_rc;
 GRANT SELECT ON TABLE public.form_valids TO glims_ro;
-GRANT SELECT ON TABLE public.form_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.form_valids TO glu;
 GRANT SELECT ON TABLE public.form_valids TO rgi_role;
 
@@ -3345,21 +1975,8 @@ GRANT SELECT ON TABLE public.form_valids TO rgi_role;
 GRANT ALL ON TABLE public.frontal_characteristics_valids TO glims_rw;
 GRANT SELECT ON TABLE public.frontal_characteristics_valids TO glims_rc;
 GRANT SELECT ON TABLE public.frontal_characteristics_valids TO glims_ro;
-GRANT SELECT ON TABLE public.frontal_characteristics_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.frontal_characteristics_valids TO glu;
 GRANT SELECT ON TABLE public.frontal_characteristics_valids TO rgi_role;
-
-
---
--- Name: TABLE glacier_ancillary_info; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.glacier_ancillary_info TO glims_rw;
-GRANT SELECT ON TABLE public.glacier_ancillary_info TO glims_rc;
-GRANT SELECT ON TABLE public.glacier_ancillary_info TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_ancillary_info TO aster_metadata;
-GRANT SELECT ON TABLE public.glacier_ancillary_info TO glu;
-GRANT SELECT ON TABLE public.glacier_ancillary_info TO rgi_role;
 
 
 --
@@ -3377,7 +1994,6 @@ GRANT SELECT,INSERT,UPDATE ON TABLE public.glacier_countries TO glims_rw;
 GRANT ALL ON TABLE public.glacier_dynamic TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_dynamic TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_dynamic TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_dynamic TO aster_metadata;
 GRANT SELECT ON TABLE public.glacier_dynamic TO glu;
 GRANT SELECT ON TABLE public.glacier_dynamic TO rgi_role;
 
@@ -3389,21 +2005,8 @@ GRANT SELECT ON TABLE public.glacier_dynamic TO rgi_role;
 GRANT ALL ON TABLE public.glacier_image_info TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_image_info TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_image_info TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_image_info TO aster_metadata;
 GRANT SELECT ON TABLE public.glacier_image_info TO glu;
 GRANT SELECT ON TABLE public.glacier_image_info TO rgi_role;
-
-
---
--- Name: TABLE glacier_line; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.glacier_line TO glims_rw;
-GRANT SELECT ON TABLE public.glacier_line TO glims_rc;
-GRANT SELECT ON TABLE public.glacier_line TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_line TO aster_metadata;
-GRANT SELECT ON TABLE public.glacier_line TO glu;
-GRANT SELECT ON TABLE public.glacier_line TO rgi_role;
 
 
 --
@@ -3412,7 +2015,6 @@ GRANT SELECT ON TABLE public.glacier_line TO rgi_role;
 
 GRANT ALL ON TABLE public.people TO glims_rw;
 GRANT SELECT ON TABLE public.people TO glims_ro;
-GRANT SELECT ON TABLE public.people TO aster_metadata;
 GRANT SELECT ON TABLE public.people TO glu;
 GRANT SELECT ON TABLE public.people TO rgi_role;
 GRANT SELECT,UPDATE ON TABLE public.people TO glims_rc;
@@ -3425,21 +2027,8 @@ GRANT SELECT,UPDATE ON TABLE public.people TO glims_rc;
 GRANT ALL ON TABLE public.regional_centers TO glims_rw;
 GRANT SELECT ON TABLE public.regional_centers TO glims_rc;
 GRANT SELECT ON TABLE public.regional_centers TO glims_ro;
-GRANT SELECT ON TABLE public.regional_centers TO aster_metadata;
 GRANT SELECT ON TABLE public.regional_centers TO glu;
 GRANT SELECT ON TABLE public.regional_centers TO rgi_role;
-
-
---
--- Name: TABLE segment; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.segment TO glims_rw;
-GRANT SELECT ON TABLE public.segment TO glims_rc;
-GRANT SELECT ON TABLE public.segment TO glims_ro;
-GRANT SELECT ON TABLE public.segment TO aster_metadata;
-GRANT SELECT ON TABLE public.segment TO glu;
-GRANT SELECT ON TABLE public.segment TO rgi_role;
 
 
 --
@@ -3449,7 +2038,6 @@ GRANT SELECT ON TABLE public.segment TO rgi_role;
 GRANT ALL ON TABLE public.submission_info TO glims_rw;
 GRANT SELECT ON TABLE public.submission_info TO glims_rc;
 GRANT SELECT ON TABLE public.submission_info TO glims_ro;
-GRANT SELECT ON TABLE public.submission_info TO aster_metadata;
 GRANT SELECT ON TABLE public.submission_info TO glu;
 GRANT SELECT ON TABLE public.submission_info TO rgi_role;
 
@@ -3464,38 +2052,16 @@ GRANT ALL ON TABLE public.submission_rc_info TO glims_rw;
 GRANT SELECT ON TABLE public.submission_rc_info TO glims_rc;
 GRANT SELECT ON TABLE public.submission_rc_info TO glims_ro;
 GRANT ALL ON TABLE public.submission_rc_info TO braup;
-GRANT SELECT ON TABLE public.submission_rc_info TO aster_metadata;
-
 
 --
--- Name: TABLE glacier_line_query_no_people; Type: ACL; Schema: public; Owner: braup
+-- Name: TABLE glacier_entities; Type: ACL; Schema: public; Owner: braup
 --
 
-GRANT SELECT ON TABLE public.glacier_line_query_no_people TO glims_ro;
-GRANT ALL ON TABLE public.glacier_line_query_no_people TO glims_rw;
-GRANT SELECT ON TABLE public.glacier_line_query_no_people TO aster_metadata;
-GRANT SELECT ON TABLE public.glacier_line_query_no_people TO glims_rc;
-GRANT SELECT ON TABLE public.glacier_line_query_no_people TO glu;
-GRANT SELECT ON TABLE public.glacier_line_query_no_people TO rgi_role;
-
-
---
--- Name: TABLE glacier_line_query_no_people_v3; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.glacier_line_query_no_people_v3 TO glims_ro;
-
-
---
--- Name: TABLE glacier_polygons; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.glacier_polygons TO glims_rw;
-GRANT SELECT ON TABLE public.glacier_polygons TO glims_rc;
-GRANT SELECT ON TABLE public.glacier_polygons TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_polygons TO aster_metadata;
-GRANT SELECT ON TABLE public.glacier_polygons TO glu;
-GRANT SELECT ON TABLE public.glacier_polygons TO rgi_role;
+GRANT ALL ON TABLE public.glacier_entities TO glims_rw;
+GRANT SELECT ON TABLE public.glacier_entities TO glims_rc;
+GRANT SELECT ON TABLE public.glacier_entities TO glims_ro;
+GRANT SELECT ON TABLE public.glacier_entities TO glu;
+GRANT SELECT ON TABLE public.glacier_entities TO rgi_role;
 
 
 --
@@ -3508,7 +2074,6 @@ GRANT ALL ON TABLE public.glacier_lines_disp TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_lines_disp TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_lines_disp TO glims_ro;
 GRANT ALL ON TABLE public.glacier_lines_disp TO braup;
-GRANT SELECT ON TABLE public.glacier_lines_disp TO aster_metadata;
 
 
 --
@@ -3518,7 +2083,6 @@ GRANT SELECT ON TABLE public.glacier_lines_disp TO aster_metadata;
 GRANT ALL ON TABLE public.glacier_map_info TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_map_info TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_map_info TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_map_info TO aster_metadata;
 GRANT SELECT ON TABLE public.glacier_map_info TO glu;
 GRANT SELECT ON TABLE public.glacier_map_info TO rgi_role;
 
@@ -3530,7 +2094,6 @@ GRANT SELECT ON TABLE public.glacier_map_info TO rgi_role;
 GRANT ALL ON TABLE public.submission_analyst TO glims_rw;
 GRANT SELECT ON TABLE public.submission_analyst TO glims_rc;
 GRANT SELECT ON TABLE public.submission_analyst TO glims_ro;
-GRANT SELECT ON TABLE public.submission_analyst TO aster_metadata;
 GRANT SELECT ON TABLE public.submission_analyst TO glu;
 GRANT SELECT ON TABLE public.submission_analyst TO rgi_role;
 
@@ -3545,7 +2108,6 @@ GRANT ALL ON TABLE public.submission_anlst_names TO glims_rw;
 GRANT SELECT ON TABLE public.submission_anlst_names TO glims_rc;
 GRANT SELECT ON TABLE public.submission_anlst_names TO glims_ro;
 GRANT ALL ON TABLE public.submission_anlst_names TO braup;
-GRANT SELECT ON TABLE public.submission_anlst_names TO aster_metadata;
 
 
 --
@@ -3558,29 +2120,13 @@ GRANT ALL ON TABLE public.submission_submitter TO glims_rw;
 GRANT SELECT ON TABLE public.submission_submitter TO glims_rc;
 GRANT SELECT ON TABLE public.submission_submitter TO glims_ro;
 GRANT ALL ON TABLE public.submission_submitter TO braup;
-GRANT SELECT ON TABLE public.submission_submitter TO aster_metadata;
 
 
 --
--- Name: TABLE glacier_query_full3; Type: ACL; Schema: public; Owner: braup
+-- Name: TABLE glacier_query_full; Type: ACL; Schema: public; Owner: braup
 --
 
-GRANT SELECT ON TABLE public.glacier_query_full3 TO glims_ro;
-
-
---
--- Name: TABLE glacier_query_full3_v2; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.glacier_query_full3_v2 TO glims_ro;
-
-
---
--- Name: TABLE glacier_query_full3_v3; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.glacier_query_full3_v3 TO glims_ro;
-
+GRANT SELECT ON TABLE public.glacier_query_full TO glims_ro;
 
 --
 -- Name: TABLE glacier_query_no_people; Type: ACL; Schema: public; Owner: braup
@@ -3590,27 +2136,12 @@ GRANT SELECT ON TABLE public.glacier_query_no_people TO glims_ro;
 
 
 --
--- Name: TABLE glacier_query_no_people_v2; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.glacier_query_no_people_v2 TO glims_ro;
-
-
---
--- Name: TABLE glacier_query_no_people_v3; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.glacier_query_no_people_v3 TO glims_ro;
-
-
---
 -- Name: TABLE glacier_reference; Type: ACL; Schema: public; Owner: braup
 --
 
 GRANT ALL ON TABLE public.glacier_reference TO glims_rw;
 GRANT SELECT ON TABLE public.glacier_reference TO glims_rc;
 GRANT SELECT ON TABLE public.glacier_reference TO glims_ro;
-GRANT SELECT ON TABLE public.glacier_reference TO aster_metadata;
 GRANT SELECT ON TABLE public.glacier_reference TO glu;
 GRANT SELECT ON TABLE public.glacier_reference TO rgi_role;
 
@@ -3621,19 +2152,6 @@ GRANT SELECT ON TABLE public.glacier_reference TO rgi_role;
 
 GRANT SELECT,UPDATE ON SEQUENCE public.glacier_static_id_num_seq1 TO glims_rw;
 
-
---
--- Name: TABLE glims_aster_footprints; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.glims_aster_footprints TO glims_rw;
-GRANT SELECT ON TABLE public.glims_aster_footprints TO glims_rc;
-GRANT SELECT ON TABLE public.glims_aster_footprints TO aster_metadata;
-GRANT SELECT,INSERT ON TABLE public.glims_aster_footprints TO glims_ro;
-GRANT SELECT ON TABLE public.glims_aster_footprints TO glu;
-GRANT SELECT ON TABLE public.glims_aster_footprints TO rgi_role;
-
-
 --
 -- Name: TABLE glims_field_dictionary; Type: ACL; Schema: public; Owner: braup
 --
@@ -3641,7 +2159,6 @@ GRANT SELECT ON TABLE public.glims_aster_footprints TO rgi_role;
 GRANT ALL ON TABLE public.glims_field_dictionary TO glims_rw;
 GRANT SELECT ON TABLE public.glims_field_dictionary TO glims_rc;
 GRANT SELECT ON TABLE public.glims_field_dictionary TO glims_ro;
-GRANT SELECT ON TABLE public.glims_field_dictionary TO aster_metadata;
 GRANT SELECT ON TABLE public.glims_field_dictionary TO glu;
 GRANT SELECT ON TABLE public.glims_field_dictionary TO rgi_role;
 
@@ -3653,31 +2170,8 @@ GRANT SELECT ON TABLE public.glims_field_dictionary TO rgi_role;
 GRANT ALL ON TABLE public.glims_table_fields TO glims_rw;
 GRANT SELECT ON TABLE public.glims_table_fields TO glims_rc;
 GRANT SELECT ON TABLE public.glims_table_fields TO glims_ro;
-GRANT SELECT ON TABLE public.glims_table_fields TO aster_metadata;
 GRANT SELECT ON TABLE public.glims_table_fields TO glu;
 GRANT SELECT ON TABLE public.glims_table_fields TO rgi_role;
-
-
---
--- Name: TABLE group_state_dates; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.group_state_dates TO glims_ro;
-GRANT ALL ON TABLE public.group_state_dates TO glims_rw;
-GRANT SELECT ON TABLE public.group_state_dates TO glims_rc;
-GRANT SELECT ON TABLE public.group_state_dates TO glu;
-GRANT SELECT ON TABLE public.group_state_dates TO rgi_role;
-
-
---
--- Name: TABLE groups; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT SELECT ON TABLE public.groups TO glims_ro;
-GRANT ALL ON TABLE public.groups TO glims_rw;
-GRANT SELECT ON TABLE public.groups TO glims_rc;
-GRANT SELECT ON TABLE public.groups TO glu;
-GRANT SELECT ON TABLE public.groups TO rgi_role;
 
 
 --
@@ -3709,27 +2203,6 @@ GRANT SELECT,INSERT,UPDATE ON TABLE public.gtng_order2regions TO glims_rw;
 
 GRANT SELECT ON SEQUENCE public.gtng_order2regions_gid_seq TO glims_ro;
 
-
---
--- Name: TABLE himalayan_dar_2007; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.himalayan_dar_2007 TO glims_rw;
-GRANT SELECT ON TABLE public.himalayan_dar_2007 TO glims_rc;
-GRANT SELECT ON TABLE public.himalayan_dar_2007 TO glims_ro;
-GRANT SELECT ON TABLE public.himalayan_dar_2007 TO aster_metadata;
-GRANT SELECT ON TABLE public.himalayan_dar_2007 TO glu;
-GRANT SELECT ON TABLE public.himalayan_dar_2007 TO rgi_role;
-
-
---
--- Name: SEQUENCE himalayan_dar_2007_gid_seq; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON SEQUENCE public.himalayan_dar_2007_gid_seq TO glims_rw;
-GRANT SELECT ON SEQUENCE public.himalayan_dar_2007_gid_seq TO glims_ro;
-
-
 --
 -- Name: TABLE image; Type: ACL; Schema: public; Owner: braup
 --
@@ -3737,7 +2210,6 @@ GRANT SELECT ON SEQUENCE public.himalayan_dar_2007_gid_seq TO glims_ro;
 GRANT ALL ON TABLE public.image TO glims_rw;
 GRANT SELECT ON TABLE public.image TO glims_rc;
 GRANT SELECT ON TABLE public.image TO glims_ro;
-GRANT SELECT ON TABLE public.image TO aster_metadata;
 GRANT SELECT ON TABLE public.image TO glu;
 GRANT SELECT ON TABLE public.image TO rgi_role;
 
@@ -3749,7 +2221,6 @@ GRANT SELECT ON TABLE public.image TO rgi_role;
 GRANT ALL ON TABLE public.image_band TO glims_rw;
 GRANT SELECT ON TABLE public.image_band TO glims_rc;
 GRANT SELECT ON TABLE public.image_band TO glims_ro;
-GRANT SELECT ON TABLE public.image_band TO aster_metadata;
 GRANT SELECT ON TABLE public.image_band TO glu;
 GRANT SELECT ON TABLE public.image_band TO rgi_role;
 
@@ -3761,7 +2232,6 @@ GRANT SELECT ON TABLE public.image_band TO rgi_role;
 GRANT ALL ON TABLE public.instrument TO glims_rw;
 GRANT SELECT ON TABLE public.instrument TO glims_rc;
 GRANT SELECT ON TABLE public.instrument TO glims_ro;
-GRANT SELECT ON TABLE public.instrument TO aster_metadata;
 GRANT SELECT ON TABLE public.instrument TO glu;
 GRANT SELECT ON TABLE public.instrument TO rgi_role;
 
@@ -3772,7 +2242,6 @@ GRANT SELECT ON TABLE public.instrument TO rgi_role;
 
 GRANT SELECT ON TABLE public.image_info_view TO glims_ro;
 GRANT ALL ON TABLE public.image_info_view TO glims_rw;
-GRANT SELECT ON TABLE public.image_info_view TO aster_metadata;
 GRANT SELECT ON TABLE public.image_info_view TO glims_rc;
 GRANT SELECT ON TABLE public.image_info_view TO glu;
 GRANT SELECT ON TABLE public.image_info_view TO rgi_role;
@@ -3785,7 +2254,6 @@ GRANT SELECT ON TABLE public.image_info_view TO rgi_role;
 GRANT ALL ON TABLE public.lon_char_valids TO glims_rw;
 GRANT SELECT ON TABLE public.lon_char_valids TO glims_rc;
 GRANT SELECT ON TABLE public.lon_char_valids TO glims_ro;
-GRANT SELECT ON TABLE public.lon_char_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.lon_char_valids TO glu;
 GRANT SELECT ON TABLE public.lon_char_valids TO rgi_role;
 
@@ -3797,33 +2265,8 @@ GRANT SELECT ON TABLE public.lon_char_valids TO rgi_role;
 GRANT ALL ON TABLE public.map_metadata TO glims_rw;
 GRANT SELECT ON TABLE public.map_metadata TO glims_rc;
 GRANT SELECT ON TABLE public.map_metadata TO glims_ro;
-GRANT SELECT ON TABLE public.map_metadata TO aster_metadata;
 GRANT SELECT ON TABLE public.map_metadata TO glu;
 GRANT SELECT ON TABLE public.map_metadata TO rgi_role;
-
-
---
--- Name: TABLE mytestview; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.mytestview TO glims_rw;
-GRANT SELECT ON TABLE public.mytestview TO glims_rc;
-GRANT SELECT ON TABLE public.mytestview TO aster_metadata;
-GRANT SELECT ON TABLE public.mytestview TO glims_ro;
-GRANT SELECT ON TABLE public.mytestview TO glu;
-GRANT SELECT ON TABLE public.mytestview TO rgi_role;
-
-
---
--- Name: TABLE point_measurement; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.point_measurement TO glims_rw;
-GRANT SELECT ON TABLE public.point_measurement TO glims_rc;
-GRANT SELECT ON TABLE public.point_measurement TO glims_ro;
-GRANT SELECT ON TABLE public.point_measurement TO aster_metadata;
-GRANT SELECT ON TABLE public.point_measurement TO glu;
-GRANT SELECT ON TABLE public.point_measurement TO rgi_role;
 
 
 --
@@ -3833,7 +2276,6 @@ GRANT SELECT ON TABLE public.point_measurement TO rgi_role;
 GRANT ALL ON TABLE public.primary_classification_valids TO glims_rw;
 GRANT SELECT ON TABLE public.primary_classification_valids TO glims_rc;
 GRANT SELECT ON TABLE public.primary_classification_valids TO glims_ro;
-GRANT SELECT ON TABLE public.primary_classification_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.primary_classification_valids TO glu;
 GRANT SELECT ON TABLE public.primary_classification_valids TO rgi_role;
 
@@ -3845,7 +2287,6 @@ GRANT SELECT ON TABLE public.primary_classification_valids TO rgi_role;
 GRANT ALL ON TABLE public.rc_people TO glims_rw;
 GRANT SELECT ON TABLE public.rc_people TO glims_rc;
 GRANT SELECT ON TABLE public.rc_people TO glims_ro;
-GRANT SELECT ON TABLE public.rc_people TO aster_metadata;
 GRANT SELECT ON TABLE public.rc_people TO glu;
 GRANT SELECT ON TABLE public.rc_people TO rgi_role;
 
@@ -3857,7 +2298,6 @@ GRANT SELECT ON TABLE public.rc_people TO rgi_role;
 GRANT ALL ON TABLE public.rc_people_nocoords TO glims_rw;
 GRANT SELECT ON TABLE public.rc_people_nocoords TO glims_rc;
 GRANT SELECT ON TABLE public.rc_people_nocoords TO glims_ro;
-GRANT SELECT ON TABLE public.rc_people_nocoords TO aster_metadata;
 GRANT SELECT ON TABLE public.rc_people_nocoords TO glu;
 GRANT SELECT ON TABLE public.rc_people_nocoords TO rgi_role;
 
@@ -3872,7 +2312,6 @@ GRANT ALL ON TABLE public.rc_people_view TO glims_rw;
 GRANT SELECT ON TABLE public.rc_people_view TO glims_rc;
 GRANT SELECT ON TABLE public.rc_people_view TO glims_ro;
 GRANT ALL ON TABLE public.rc_people_view TO braup;
-GRANT SELECT ON TABLE public.rc_people_view TO aster_metadata;
 
 
 --
@@ -3882,62 +2321,8 @@ GRANT SELECT ON TABLE public.rc_people_view TO aster_metadata;
 GRANT ALL ON TABLE public.reference_document TO glims_rw;
 GRANT SELECT ON TABLE public.reference_document TO glims_rc;
 GRANT SELECT ON TABLE public.reference_document TO glims_ro;
-GRANT SELECT ON TABLE public.reference_document TO aster_metadata;
 GRANT SELECT ON TABLE public.reference_document TO glu;
 GRANT SELECT ON TABLE public.reference_document TO rgi_role;
-
-
---
--- Name: TABLE reference_point; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.reference_point TO glims_rw;
-GRANT SELECT ON TABLE public.reference_point TO glims_rc;
-GRANT SELECT ON TABLE public.reference_point TO glims_ro;
-GRANT SELECT ON TABLE public.reference_point TO aster_metadata;
-GRANT SELECT ON TABLE public.reference_point TO glu;
-GRANT SELECT ON TABLE public.reference_point TO rgi_role;
-
-
---
--- Name: TABLE rgi_users; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.rgi_users TO glims_rw;
-GRANT SELECT ON TABLE public.rgi_users TO glims_rc;
-GRANT SELECT ON TABLE public.rgi_users TO glims_ro;
-GRANT SELECT ON TABLE public.rgi_users TO aster_metadata;
-GRANT SELECT ON TABLE public.rgi_users TO glu;
-GRANT SELECT,INSERT ON TABLE public.rgi_users TO rgi_role;
-
-
---
--- Name: SEQUENCE rgi_users_id_seq; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON SEQUENCE public.rgi_users_id_seq TO glims_rw;
-GRANT SELECT,UPDATE ON SEQUENCE public.rgi_users_id_seq TO rgi_role;
-
-
---
--- Name: TABLE starpolys; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.starpolys TO glims_rw;
-GRANT SELECT ON TABLE public.starpolys TO glims_rc;
-GRANT SELECT ON TABLE public.starpolys TO glims_ro;
-GRANT SELECT ON TABLE public.starpolys TO aster_metadata;
-GRANT SELECT ON TABLE public.starpolys TO glu;
-GRANT SELECT ON TABLE public.starpolys TO rgi_role;
-
-
---
--- Name: SEQUENCE starpolys_gid_seq; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON SEQUENCE public.starpolys_gid_seq TO glims_rw;
-GRANT SELECT ON SEQUENCE public.starpolys_gid_seq TO glims_ro;
-
 
 --
 -- Name: TABLE status_def; Type: ACL; Schema: public; Owner: braup
@@ -3946,21 +2331,8 @@ GRANT SELECT ON SEQUENCE public.starpolys_gid_seq TO glims_ro;
 GRANT ALL ON TABLE public.status_def TO glims_rw;
 GRANT SELECT ON TABLE public.status_def TO glims_rc;
 GRANT SELECT ON TABLE public.status_def TO glims_ro;
-GRANT SELECT ON TABLE public.status_def TO aster_metadata;
 GRANT SELECT ON TABLE public.status_def TO glu;
 GRANT SELECT ON TABLE public.status_def TO rgi_role;
-
-
---
--- Name: TABLE tiepoint_region; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.tiepoint_region TO glims_rw;
-GRANT SELECT ON TABLE public.tiepoint_region TO glims_rc;
-GRANT SELECT ON TABLE public.tiepoint_region TO glims_ro;
-GRANT SELECT ON TABLE public.tiepoint_region TO aster_metadata;
-GRANT SELECT ON TABLE public.tiepoint_region TO glu;
-GRANT SELECT ON TABLE public.tiepoint_region TO rgi_role;
 
 
 --
@@ -3970,36 +2342,9 @@ GRANT SELECT ON TABLE public.tiepoint_region TO rgi_role;
 GRANT ALL ON TABLE public.tongue_activity_valids TO glims_rw;
 GRANT SELECT ON TABLE public.tongue_activity_valids TO glims_rc;
 GRANT SELECT ON TABLE public.tongue_activity_valids TO glims_ro;
-GRANT SELECT ON TABLE public.tongue_activity_valids TO aster_metadata;
 GRANT SELECT ON TABLE public.tongue_activity_valids TO glu;
 GRANT SELECT ON TABLE public.tongue_activity_valids TO rgi_role;
-
-
---
--- Name: TABLE vector; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.vector TO glims_rw;
-GRANT SELECT ON TABLE public.vector TO glims_rc;
-GRANT SELECT ON TABLE public.vector TO glims_ro;
-GRANT SELECT ON TABLE public.vector TO aster_metadata;
-GRANT SELECT ON TABLE public.vector TO glu;
-GRANT SELECT ON TABLE public.vector TO rgi_role;
-
-
---
--- Name: TABLE vector_set; Type: ACL; Schema: public; Owner: braup
---
-
-GRANT ALL ON TABLE public.vector_set TO glims_rw;
-GRANT SELECT ON TABLE public.vector_set TO glims_rc;
-GRANT SELECT ON TABLE public.vector_set TO glims_ro;
-GRANT SELECT ON TABLE public.vector_set TO aster_metadata;
-GRANT SELECT ON TABLE public.vector_set TO glu;
-GRANT SELECT ON TABLE public.vector_set TO rgi_role;
-
 
 --
 -- PostgreSQL database dump complete
 --
-
