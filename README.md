@@ -24,8 +24,6 @@ submit a pull request.  We will do our best to incorporate your ideas.  You
 may also contact people on the [GLIMS Core
 Team](https://www.glims.org/About/glims_core_team.html).
 
-See the [LICENSE](LICENSE) for details on permissions and warranties. Please contact
-nsidc@nsidc.org for more information.
 
 ## Credit
 
