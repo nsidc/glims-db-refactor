@@ -5,16 +5,14 @@
 1.  Edit tables:
 
     1.  Rename *glacier\_polygons* to *glac\_entities* (multi-format
-        > geometries; i.e. polylines, polygons, etc are in geometry
-        > field).
+        geometries; i.e. polylines, polygons, etc are in geometry field).
 
     2.  Move uncertainty fields from *segment* to *glac\_entities.*
 
-    3.  Retain *glacier\_dynamic* and *glacier\_static* tables as they
-        > are.
+    3.  Retain *glacier\_dynamic* and *glacier\_static* tables as they are.
 
     4.  Revisit the issue of multiple (local language, English
-        > spellings, etc.) glacier names?
+        spellings, etc.) glacier names?
 
 2.  Remove tables (i.e. don’t duplicate):
 
@@ -37,7 +35,7 @@
 3.  Topology changes:
 
     1.  Merge all “intrnl\_rock” polygons with their glac\_bound
-        > polygons and store in new glac\_outlines table
+        polygons and store in new glac\_outlines table
 
         1.  How to do this? Download service can convert intrnl\_rock
             polygons to holes, so need to adapt this code to
@@ -52,8 +50,7 @@
             attributes that are stored in the database.
 
     2.  Convert all multi-part polygons to single ones, assigning new
-        > GLIMS Glacier IDs, and analysis IDs, to the new parts.
-        > \[Why?\]
+        GLIMS Glacier IDs, and analysis IDs, to the new parts.
 
 ## Simpler Data Transfer Format
 
@@ -67,12 +64,12 @@ data transfer format.
     Each glacier should have only one glac\_bound outline.
 
     1.  Either all outlines in glaciers.shp should have the same as-of
-        > date, or there should be at least one “image\_idN” column in
-        > the glaciers.shp file, and the images.shp file should be a
-        > list of images and have, in addition to the image IDs, the
-        > corresponding dates. Note that while different dates are
-        > allowed, they shouldn’t be too different from each other (e.g.
-        > from one season).
+        date, or there should be at least one “image\_idN” column in
+        the glaciers.shp file, and the images.shp file should be a
+        list of images and have, in addition to the image IDs, the
+        corresponding dates. Note that while different dates are
+        allowed, they shouldn’t be too different from each other (e.g.
+        from one season).
 
 2.  No multi-polygons are allowed.
 
@@ -88,7 +85,7 @@ data transfer format.
     3.  Analysis date
 
     4.  We should have a file upload option. Format could be text file
-        > with key=value format.
+        with key=value format.
 
 4.  The existing “segments.shp” file will no longer be needed.
 
