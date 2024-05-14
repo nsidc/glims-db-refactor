@@ -26,9 +26,14 @@ def print_arg_summary(args):
 
 def setup_argument_parser():
     """Set up command line options.  -h or --help for help is automatic"""
+    b_help = 'Bounding box to define region for move. Format: --bbox=W,E,S,N'
+
     p = argparse.ArgumentParser()
+
     p.add_argument('-o', '--outfile', default='mv_glims_db.sql',  help='File name for SQL output')
+    p.add_argument('-b', '--bbox', default='all',  help=b_help)
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages")
+
     return(p)
 
 
@@ -166,6 +171,31 @@ def connect_to_db():
     return (dbh_old, dbh_new)
 
 
+def process_glacier_entities(T, dbh_old, dbh_new, args):
+    '''
+    process_glacier_entities -- Move glacier_polygons to glacier_entities
+
+    - Read all records within region (args.bbox), group by glacier_id, and
+      convert all intrnl_rock polygons to holes in the associated glac_bound
+      polygon
+
+      TODO:  Need to select also from glacier_dynamic so that I get the glacier_id
+
+    '''
+    if args.bbox == 'all':
+        sql = f'SELECT gd.glacier_id, gd.analysis_id, {T}.* FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id'
+    else:
+        W, E, S, N = args.bbox.split(',')
+        region = f"ST_MakePolygon(ST_GeomFromText('LINESTRING({W} {S}, {E} {S}, {E} {N}, {W} {N}, {W} {S})'))"
+        sql = f'SELECT gd.glacier_id, gd.analysis_id, {T}.* FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id AND ST_Overlaps(region, {T}.glacier_polys)'
+
+    dbh_old.execute(sql)
+
+    ents_by_glac_id = {}
+    for row in dbh_old.fetchall():
+        aid, line_type, glac_polys, 
+
+
 def do_db_move(args):
     """
     Do major steps to move the database.
@@ -186,7 +216,7 @@ def do_db_move(args):
     for T in tables.keys():
         # Default is a simple copy to the new db
         if T in ('glacier_polygons'):
-            pass
+            process_glacier_entities(T, dbh_old, dbh_new, args)
         else:
             # Simple copy
             # Can pg_dump/pg_restore be part of this? Nah...
