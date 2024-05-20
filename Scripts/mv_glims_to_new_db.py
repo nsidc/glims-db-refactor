@@ -11,9 +11,12 @@ import sys
 import datetime as dt
 import argparse
 from collections import OrderedDict
+from collections import defaultdict
 from pprint import pprint
 
 import psycopg2
+from shapely.geometry import Polygon
+from shapely.wkt import loads as sloads
 
 from connection import CONN, CONN_V2
 
@@ -30,7 +33,6 @@ def setup_argument_parser():
 
     p = argparse.ArgumentParser()
 
-    p.add_argument('-o', '--outfile', default='mv_glims_db.sql',  help='File name for SQL output')
     p.add_argument('-b', '--bbox', default='all',  help=b_help)
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages")
 
@@ -127,15 +129,15 @@ def get_tables_list(debug=False):
         ]
     )
 
-    if check_dependencies(tables):
+    if check_table_dependencies(tables):
         return tables
     else:
         return None
 
 
-def check_dependencies(tables):
+def check_table_dependencies(tables):
     '''
-    check_dependencies: check that the tables are in a correct order to satisfy dependencies
+    check_table_dependencies: check that the tables are in a correct order to satisfy dependencies
     '''
     dep_t_seen = {}
     for t, dep_t in tables.items():
@@ -146,6 +148,14 @@ def check_dependencies(tables):
                 return False
         dep_t_seen[t] = 1
     return True
+
+
+def extract_poly_only(row):
+    '''
+    extract_poly_only -- extract a Shapely geom object from a row of data
+    '''
+    srid_part, poly_part = row[3].split(';')
+    return sloads(poly_part)
 
 
 def connect_to_db():
@@ -173,27 +183,101 @@ def connect_to_db():
 
 def process_glacier_entities(T, dbh_old, dbh_new, args):
     '''
-    process_glacier_entities -- Move glacier_polygons to glacier_entities
+    process_glacier_entities -- Top-level routine for moving glacier_polygons to glacier_entities
 
-    - Read all records within region (args.bbox), group by glacier_id, and
-      convert all intrnl_rock polygons to holes in the associated glac_bound
-      polygon
-
-      TODO:  Need to select also from glacier_dynamic so that I get the glacier_id
+    Read all records within region (args.bbox), group by glacier_id, and
+    convert all intrnl_rock polygons to holes in the associated glac_bound
+    polygon
 
     '''
+
+    # Select all entities from database (or those within bounding box)
+
+    base_query = f'SELECT gd.glacier_id, gd.analysis_id, {T}.line_type, ST_AsEWKT({T}.glacier_polys) ' \
+                + 'FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id'
+
     if args.bbox == 'all':
-        sql = f'SELECT gd.glacier_id, gd.analysis_id, {T}.* FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id'
+        sql = base_query
     else:
         W, E, S, N = args.bbox.split(',')
         region = f"ST_MakePolygon(ST_GeomFromText('LINESTRING({W} {S}, {E} {S}, {E} {N}, {W} {N}, {W} {S})'))"
-        sql = f'SELECT gd.glacier_id, gd.analysis_id, {T}.* FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id AND ST_Overlaps(region, {T}.glacier_polys)'
+        sql = base_query + f' AND ST_Overlaps(region, {T}.glacier_polys)'
 
     dbh_old.execute(sql)
+    query_results = dbh_old.fetchall()      # list of tuples
 
-    ents_by_glac_id = {}
-    for row in dbh_old.fetchall():
-        aid, line_type, glac_polys, 
+    move_sql = old_to_new_data_model(query_results)
+    for m in move_sql:
+        print(m)
+
+
+def old_to_new_data_model(query_results):
+    ''' old_to_new_data_model - translate all query results from old to new data model
+
+    For reference, as of 2024-05-20, here are the line types in the glacier_polygons table:
+
+    # select line_type, count(line_type) from glacier_polygons group by line_type order by count desc;
+          line_type  | count  
+        -------------+--------
+         glac_bound  | 792212
+         intrnl_rock | 467402
+         debris_cov  |  14872
+         pro_lake    |    291
+         supra_lake  |     18
+         basin_bound |      9
+        (6 rows)
+
+    Here are the needed actions by line_type:
+
+    - pro_lake, supra_lake, basin_bound, debris_cov:  Simply copy as-is to the
+      new "glacier_entities" table.
+
+    - glac_bound and intrnl_rock:
+    
+
+        2) need to check that there aren't multiple glac_bound polygons for a given glacier.  In that case,
+          we need to:
+
+            a) break out into separate glac_polygons and assign new glacier IDs
+            b) figure out which intrnl_rock polygons go with which glac_bound polygons
+            1) need to check that intrnl_rock polys are within the associated glac_bound polygons;
+
+        3) need to be combined so that intrnl_rock polygons become "holes" in the associated glac_bound polygon;
+
+        This routine is detached from data source to enable application to test data.
+    '''
+
+    bounds_by_glac_id = defaultdict(list)
+    rocks_by_glac_id = defaultdict(list)
+
+    # Copy non-glacier-bounds entities directly, or collect
+    # glacier-bounds/intrnl_rock entities for further processing.
+
+    for row in query_results:
+        gid, aid, line_type, glac_polys = row
+        if line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
+            print(insert_row_as_simple_copy(T, row))
+        elif line_type == 'glac_bound':
+            if gid in bounds_by_glac_id:
+                # multiple glac_bound polys for this glacier
+                pass
+            else:
+                bounds_by_glac_id[gid].append(row)
+        elif line_type == 'intrnl_rock':
+            rocks_by_glac_id[gid].append(row)
+
+    # Now assemble glac_bound polys with holes
+    for gid in bounds_by_glac_id.keys():
+        pass
+
+
+def insert_row_as_simple_copy(T, row):
+    ''' insert_row_as_simple_copy -- print or do INSERT of unchanged row to unchanged table
+    '''
+    row_fixed = tuple(['NULL' if e is None else e for e in row])
+    sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
+    sql_out = sql_out.replace("'NULL'", 'NULL')
+    return sql_out
 
 
 def do_db_move(args):
@@ -224,10 +308,7 @@ def do_db_move(args):
             sql = f'SELECT * from {T};'
             dbh_old.execute(sql)
             for row in dbh_old.fetchall():
-                row_fixed = tuple(['NULL' if e is None else e for e in row])
-                sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
-                sql_out = sql_out.replace("'NULL'", 'NULL')
-                print(sql_out)
+                print(insert_row_as_simple_copy(T, row))
 
 
 def main():
