@@ -19,6 +19,7 @@ from shapely.geometry import Polygon
 from shapely.wkt import loads as sloads
 
 from connection import CONN, CONN_V2
+from db_objs import Glacier_entity
 
 
 def print_arg_summary(args):
@@ -150,26 +151,26 @@ def check_table_dependencies(tables):
     return True
 
 
-def extract_poly_only(poly_ewkt):
-    '''
-    extract_poly_only -- extract a Shapely geom object from a row of data
-
-    Input:  EWKT form of polygon (with SRID) (geom part of "row" result of DB query)
-    Output: shapely object form (without SRID representation)
-    '''
-    srid_part, poly_part = poly_ewkt.split(';')
-    return sloads(poly_part)
-
-
-def add_srid_to_poly(poly_text):
-    '''
-    add_srid_to_poly -- add the SRID=4326 part to the EWKT representation of the polygon
-
-    Input:  shapely to_wkt() form of poly: 'POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
-    Output: EWKT form:           'SRID=4326;POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
-    '''
-    srid='SRID=4326'
-    return ';'.join([srid, poly_text])
+#def extract_poly_only(poly_ewkt):
+#    '''
+#    extract_poly_only -- extract a Shapely geom object from a row of data
+#
+#    Input:  EWKT form of polygon (with SRID) (geom part of "row" result of DB query)
+#    Output: shapely object form (without SRID representation)
+#    '''
+#    srid_part, poly_part = poly_ewkt.split(';')
+#    return sloads(poly_part)
+#
+#
+#def add_srid_to_poly(poly_text):
+#    '''
+#    add_srid_to_poly -- add the SRID=4326 part to the EWKT representation of the polygon
+#
+#    Input:  shapely to_wkt() form of poly: 'POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+#    Output: EWKT form:           'SRID=4326;POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+#    '''
+#    srid='SRID=4326'
+#    return ';'.join([srid, poly_text])
 
 
 def connect_to_db():
@@ -214,6 +215,7 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
         sql = base_query
     else:
         W, E, S, N = args.bbox.split(',')
+        # SRID?
         region = f"ST_MakePolygon(ST_GeomFromText('LINESTRING({W} {S}, {E} {S}, {E} {N}, {W} {N}, {W} {S})'))"
         sql = base_query + f' AND ST_Overlaps(region, {T}.glacier_polys)'
 
@@ -275,41 +277,37 @@ def old_to_new_data_model(query_results):
     # glacier-bounds/intrnl_rock entities for further processing.
 
     for row in query_results:
-        gid, aid, line_type, glac_polys = row
-        if line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
+        gl_obj = Glacier_entity(row)
+        if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
             print(insert_row_as_simple_copy(T, row))
-        elif line_type == 'glac_bound':
-            bounds_by_glac_id[gid].append(row)
-        elif line_type == 'intrnl_rock':
-            rocks_by_glac_id[gid].append(row)
+        elif gl_obj.line_type == 'glac_bound':
+            bounds_by_glac_id[gid].append(gl_obj)
+        elif gl_obj.line_type == 'intrnl_rock':
+            rocks_by_glac_id[gid].append(gl_obj)
         else:
             print("Warning: found line_type: ", line_type, file=sys.stderr)
 
     # Now assemble glac_bound polys with holes
-    for gid, rowlist in bounds_by_glac_id.items():
-        if len(rowlist) > 1:
+    for gid, gl_obj_list in bounds_by_glac_id.items():
+        if len(gl_obj_list) > 1:
             # multiple glac_bound polys for this glacier
             pass
         else:
             # Single glac_bound polygon. Find any intrnl_rock polys
-            bound_poly = extract_poly_only(rowlist[0][3])
+            bound_obj = gl_obj_list[0]
             if gid in rocks_by_glac_id:
-                rock_recs = rocks_by_glac_id[gid]  # list of "row" tuples
+                rock_objs = rocks_by_glac_id[gid]  # list of "row" tuples
                 # Check for containment...
                 int_rocks = []
-                for r in rock_recs:
-                    r_poly = extract_poly_only(r[3])
-
-                    if not bound_poly.contains(r_poly):
+                for r in rock_objs:
+                    if not bound_obj.contains(r):
                         orphan_rocks_by_glac_id[gid].append(r)
                     else:
                         int_rocks.append(r)
 
                 # Assemble holey polygon
-                holey_geom = Polygon(bound_poly.exterior, [extract_poly_only(e[3]).exterior for e in int_rocks])
-                row_as_list = list(rowlist[0])
-                row_as_list[3] = holey_geom
-                new_glac_rec_by_glac_id[gid] = tuple(row_as_list)
+                holey_geom = Polygon(bound_obj.get_poly_shapely().exterior, [e.get_poly_shapely().exterior for e in int_rocks])
+                bound_obj.set_poly_from_shapely(holey_geom)
 
 
 def insert_row_as_simple_copy(T, row):
