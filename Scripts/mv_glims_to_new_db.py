@@ -150,12 +150,26 @@ def check_table_dependencies(tables):
     return True
 
 
-def extract_poly_only(row):
+def extract_poly_only(poly_ewkt):
     '''
     extract_poly_only -- extract a Shapely geom object from a row of data
+
+    Input:  EWKT form of polygon (with SRID) (geom part of "row" result of DB query)
+    Output: shapely object form (without SRID representation)
     '''
-    srid_part, poly_part = row[3].split(';')
+    srid_part, poly_part = poly_ewkt.split(';')
     return sloads(poly_part)
+
+
+def add_srid_to_poly(poly_text):
+    '''
+    add_srid_to_poly -- add the SRID=4326 part to the EWKT representation of the polygon
+
+    Input:  shapely to_wkt() form of poly: 'POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    Output: EWKT form:           'SRID=4326;POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    '''
+    srid='SRID=4326'
+    return ';'.join([srid, poly_text])
 
 
 def connect_to_db():
@@ -214,6 +228,9 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
 def old_to_new_data_model(query_results):
     ''' old_to_new_data_model - translate all query results from old to new data model
 
+    Input:  query_results, a list of tuples
+    Output: SQL on stdout, or execute it on new DB
+
     For reference, as of 2024-05-20, here are the line types in the glacier_polygons table:
 
     # select line_type, count(line_type) from glacier_polygons group by line_type order by count desc;
@@ -233,22 +250,26 @@ def old_to_new_data_model(query_results):
       new "glacier_entities" table.
 
     - glac_bound and intrnl_rock:
-    
 
-        2) need to check that there aren't multiple glac_bound polygons for a given glacier.  In that case,
-          we need to:
+        1) need to check that there aren't multiple glac_bound polygons for
+           a given glacier.  In that case, we need to:
 
             a) break out into separate glac_polygons and assign new glacier IDs
             b) figure out which intrnl_rock polygons go with which glac_bound polygons
-            1) need to check that intrnl_rock polys are within the associated glac_bound polygons;
+                - For each intrnl_rock polygon, check each glac_bound poly with
+                  matching glac_id to see if it contains,
 
-        3) need to be combined so that intrnl_rock polygons become "holes" in the associated glac_bound polygon;
+                - If none found, check all records.
+
+        2) need to be combined so that intrnl_rock polygons become "holes" in the associated glac_bound polygon;
 
         This routine is detached from data source to enable application to test data.
     '''
 
     bounds_by_glac_id = defaultdict(list)
     rocks_by_glac_id = defaultdict(list)
+    orphan_rocks_by_glac_id = defaultdict(list)
+    new_glac_rec_by_glac_id = defaultdict(list)
 
     # Copy non-glacier-bounds entities directly, or collect
     # glacier-bounds/intrnl_rock entities for further processing.
@@ -258,17 +279,37 @@ def old_to_new_data_model(query_results):
         if line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
             print(insert_row_as_simple_copy(T, row))
         elif line_type == 'glac_bound':
-            if gid in bounds_by_glac_id:
-                # multiple glac_bound polys for this glacier
-                pass
-            else:
-                bounds_by_glac_id[gid].append(row)
+            bounds_by_glac_id[gid].append(row)
         elif line_type == 'intrnl_rock':
             rocks_by_glac_id[gid].append(row)
+        else:
+            print("Warning: found line_type: ", line_type, file=sys.stderr)
 
     # Now assemble glac_bound polys with holes
-    for gid in bounds_by_glac_id.keys():
-        pass
+    for gid, rowlist in bounds_by_glac_id.items():
+        if len(rowlist) > 1:
+            # multiple glac_bound polys for this glacier
+            pass
+        else:
+            # Single glac_bound polygon. Find any intrnl_rock polys
+            bound_poly = extract_poly_only(rowlist[0][3])
+            if gid in rocks_by_glac_id:
+                rock_recs = rocks_by_glac_id[gid]  # list of "row" tuples
+                # Check for containment...
+                int_rocks = []
+                for r in rock_recs:
+                    r_poly = extract_poly_only(r[3])
+
+                    if not bound_poly.contains(r_poly):
+                        orphan_rocks_by_glac_id[gid].append(r)
+                    else:
+                        int_rocks.append(r)
+
+                # Assemble holey polygon
+                holey_geom = Polygon(bound_poly.exterior, [extract_poly_only(e[3]).exterior for e in int_rocks])
+                row_as_list = list(rowlist[0])
+                row_as_list[3] = holey_geom
+                new_glac_rec_by_glac_id[gid] = tuple(row_as_list)
 
 
 def insert_row_as_simple_copy(T, row):

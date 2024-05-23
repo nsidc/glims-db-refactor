@@ -61,6 +61,22 @@ Y
     return entity_list
 
 
+def test_extract_poly_only():
+    poly_ewkt = 'SRID=4326;POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    poly_only =           'POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    got = mv.extract_poly_only(poly_ewkt)
+    print('got = ', got)
+    print('poly_only = ', poly_only)
+    assert(got == sloads(poly_only))
+
+
+def test_add_srid_to_poly():
+    poly_ewkt = 'SRID=4326;POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    poly_only = 'POLYGON((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'
+    got = mv.add_srid_to_poly(poly_only)
+    assert(got == poly_ewkt)
+
+
 def test_insert_row_as_simple_copy():
     T = 'the_table'
     row = (1, 2, None, 'abcde')
@@ -74,8 +90,8 @@ def test_testdata_1():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[0])
-    g1a_geom = mv.extract_poly_only(testdata[1])
+    g1_geom = mv.extract_poly_only(testdata[0][3])
+    g1a_geom = mv.extract_poly_only(testdata[1][3])
     assert(g1_geom.contains(g1a_geom))
 
 
@@ -84,8 +100,8 @@ def test_testdata_2():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[2])
-    g1a_geom = mv.extract_poly_only(testdata[3])
+    g1_geom = mv.extract_poly_only(testdata[2][3])
+    g1a_geom = mv.extract_poly_only(testdata[3][3])
     assert(g1_geom.contains(g1a_geom))
 
 
@@ -94,8 +110,8 @@ def test_testdata_3():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[4])
-    g1a_geom = mv.extract_poly_only(testdata[5])
+    g1_geom = mv.extract_poly_only(testdata[4][3])
+    g1a_geom = mv.extract_poly_only(testdata[5][3])
     assert(g1_geom.contains(g1a_geom))
 
 
@@ -104,8 +120,8 @@ def test_testdata_4():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[6])
-    g1a_geom = mv.extract_poly_only(testdata[7])
+    g1_geom = mv.extract_poly_only(testdata[6][3])
+    g1a_geom = mv.extract_poly_only(testdata[7][3])
     assert(not g1_geom.contains(g1a_geom))
 
 
@@ -114,8 +130,8 @@ def test_testdata_5():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[9])
-    g1a_geom = mv.extract_poly_only(testdata[6])
+    g1_geom = mv.extract_poly_only(testdata[9][3])
+    g1a_geom = mv.extract_poly_only(testdata[6][3])
     assert(g1_geom.contains(g1a_geom))
 
 
@@ -124,8 +140,8 @@ def test_testdata_6():
     Test of converting to holey polygon
     '''
     testdata = _make_test_data()
-    g1_geom = mv.extract_poly_only(testdata[0])
-    g1a_geom = mv.extract_poly_only(testdata[1])
+    g1_geom = mv.extract_poly_only(testdata[0][3])
+    g1a_geom = mv.extract_poly_only(testdata[1][3])
 
     g1_area = g1_geom.area
     g1a_area = g1a_geom.area
@@ -143,10 +159,10 @@ def test_testdata_multiple_holes():
     Test of converting to multi-holey polygon
     '''
     testdata = _make_test_data()
-    outer = mv.extract_poly_only(testdata[9])
-    inner1 = mv.extract_poly_only(testdata[0])
-    inner2 = mv.extract_poly_only(testdata[2])
-    inner3 = mv.extract_poly_only(testdata[4])
+    outer = mv.extract_poly_only(testdata[9][3])
+    inner1 = mv.extract_poly_only(testdata[0][3])
+    inner2 = mv.extract_poly_only(testdata[2][3])
+    inner3 = mv.extract_poly_only(testdata[4][3])
 
     outer_area = outer.area
     inners = inner1.area + inner2.area + inner3.area
