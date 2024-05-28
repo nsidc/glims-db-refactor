@@ -190,7 +190,8 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
 
     # Select all entities from database (or those within bounding box)
 
-    base_query = f'SELECT gd.glacier_id, gd.analysis_id, {T}.line_type, ST_AsEWKT({T}.glacier_polys) ' \
+    # The ST_Force_2D function will convert the GLIMS DB to 2D, which is what people want.
+    base_query = f'SELECT gd.glacier_id, gd.analysis_id, {T}.line_type, ST_AsEWKT(ST_Force_2D({T}.glacier_polys)) ' \
                 + f'FROM {T}, glacier_dynamic gd WHERE {T}.analysis_id=gd.analysis_id'
 
     if args.bbox == 'all':
@@ -314,7 +315,7 @@ def old_to_new_data_model(query_results, args):
 
             geom_part = f"ST_GeomFromEWKT('{bound_obj.as_ewkt_with_srid()}')"
             sql = f'INSERT INTO glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                  + f'({bound_obj.aid}, {bound_obj.line_type}, {geom_part});'
+                  + f"({bound_obj.aid}, '{bound_obj.line_type}', {geom_part});"
             move_sql.append(sql)
 
     return move_sql
@@ -346,6 +347,9 @@ def do_db_move(args):
 
     # Open connections to both databases
     dbh_old, dbh_new = connect_to_db()
+
+    # Start transaction for all SQL
+    print('BEGIN;')
 
     for T in tables.keys():
         # Default is a simple copy to the new db
