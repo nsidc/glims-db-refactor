@@ -236,7 +236,7 @@ def old_to_new_data_model(query_results):
     For reference, as of 2024-05-20, here are the line types in the glacier_polygons table:
 
     # select line_type, count(line_type) from glacier_polygons group by line_type order by count desc;
-          line_type  | count  
+          line_type  | count
         -------------+--------
          glac_bound  | 792212
          intrnl_rock | 467402
@@ -285,7 +285,7 @@ def old_to_new_data_model(query_results):
         elif gl_obj.line_type == 'intrnl_rock':
             rocks_by_glac_id[gid].append(gl_obj)
         else:
-            print("Warning: found line_type: ", line_type, file=sys.stderr)
+            print("Warning: found unknown line_type: ", line_type, file=sys.stderr)
 
     # Now assemble glac_bound polys with holes
     for gid, gl_obj_list in bounds_by_glac_id.items():
@@ -306,8 +306,12 @@ def old_to_new_data_model(query_results):
                         int_rocks.append(r)
 
                 # Assemble holey polygon
-                holey_geom = Polygon(bound_obj.get_poly_shapely().exterior, [e.get_poly_shapely().exterior for e in int_rocks])
-                bound_obj.set_poly_from_shapely(holey_geom)
+                holey_geom = Polygon(bound_obj.sgeom.exterior, [e.sgeom.exterior for e in int_rocks])
+                bound_obj.sgeom = holey_geom
+
+    for o in gl_obj_list:
+        sql = f'INSERT INTO glacier_entities (analysis_id, line_type, entity_geom) VALUES ({o.aid}, {o.line_type}, {o.as_ewkt_with_srid()});'
+        print(sql)
 
 
 def insert_row_as_simple_copy(T, row):
@@ -323,7 +327,7 @@ def do_db_move(args):
     """
     Do major steps to move the database.
     """
-    
+
     tables = get_tables_list(debug=True)
 
     if tables is not None:
@@ -352,7 +356,7 @@ def do_db_move(args):
 
 def main():
     """
-    
+
     Main entry point of the program.
 
     Steps to moving database:
@@ -364,7 +368,7 @@ def main():
 
     - Write directly to database, or SQL to stdout.
 
-    
+
     """
     p = setup_argument_parser()
 

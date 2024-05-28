@@ -8,25 +8,23 @@ class Glacier_entity(object):
         self.gid = tup[0]
         self.aid = tup[1]
         self.line_type = tup[2]
-        self.poly_ewkt = tup[3]
+        self.srid = tup[3].split(';')[0]  # e.g. 'SRID=4326'
+        #self.poly_ewkt = tup[3]
+        self.sgeom = loads(tup[3].split(';')[1])
 
     def as_tuple(self):
-        rtn = (self.gid, self.aid, self.line_type, self.poly_ewkt)
+        rtn = (self.gid, self.aid, self.line_type, self.as_ewkt_with_srid())
         return rtn
 
-    def get_srid(self):
-        return self.poly_ewkt.split(';')[0]  # e.g. 'SRID=4326'
+    def as_ewkt_with_srid(self):
+        ''' Ouput as something like
 
-    def get_poly_nosrid(self):
-        return self.poly_ewkt.split(';')[1]
+        'SRID=4326;POLYGON ((0 0, 0 2, 2 2, 2 0, 0 0))'
 
-    def get_poly_shapely(self):
-        self.poly_shapely = loads(self.get_poly_nosrid())
-
-    def set_poly_from_shapely(self, p):
-        ''' Input:  shapely polygon '''
-        self.poly_ewkt = ';'.join([self.get_srid(), p.to_wkt()])
+        '''
+        rtn = ';'.join([self.srid, self.sgeom.wkt])
+        return rtn
 
     def contains(self, o):
         ''' input:  another Glacier_entity object '''
-        return self.get_poly_shapely().contains(o.get_poly_shapely())
+        return self.sgeom.contains(o.sgeom)
