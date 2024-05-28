@@ -16,6 +16,11 @@ boundary polygons to represent nunataks.  This refactoring will simplify
 the design of the GLIMS Glacier Database and better align it with actual
 modern use.
 
+The main changes to the GLIMS Glacier Database will be:
+
+    * Nunataks will be represented as holes in the boundary polygon;
+    * Formerly 3-D polygons ("POLYGON Z") will be 2-D ("POLYGON")
+
 ## Level of Support
 
 If you discover any problems or bugs, please submit an Issue. If you would
