@@ -48,7 +48,6 @@ pg_dump --schema-only --create                      \
         -U braup glims                              |
         sed 's/glacier_polygons/glacier_entities/g' |
         sed 's/glacier_polys/entity_geom/g'         |
-        sed 's/line_type text/line_type smallint/'  |
         sed '/enforce_dims_entity_geom/d'           |
         sed '/enforce_geotype_entity_geom/d'        |
         sed 's/public/data/g'                       |
