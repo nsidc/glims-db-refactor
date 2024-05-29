@@ -421,7 +421,7 @@ ALTER TABLE data.submission_rc_info OWNER TO postgres;
 
 CREATE TABLE data.glacier_entities (
     analysis_id integer NOT NULL,
-    line_type smallint NOT NULL,
+    line_type text NOT NULL,
     entity_geom data.geometry NOT NULL,
     CONSTRAINT enforce_srid_entity_geom CHECK ((data.st_srid(entity_geom) = 4326))
 );
