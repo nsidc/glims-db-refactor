@@ -54,5 +54,5 @@ pg_dump --schema-only --create                      \
         sed 's/DATABASE glims/DATABASE glims_v2/'   |
         sed 's/Name: glims/Name: glims_v2/'         |
         sed 's/connect glims/connect glims_v2/'     |
-        sed -E 's/(^.connect glims_v2.*$)/\1\nCREATE SCHEMA data;\n\nALTER DATABASE glims_v2 SET search_path TO data, public;/' \
+        sed -E 's/(^.connect glims_v2.*$)/\1\n\nCREATE SCHEMA data;\n\nALTER DATABASE glims_v2 SET search_path TO data, public;\n\nCREATE EXTENSION postgis SCHEMA data;/' \
         > new_schema.sql

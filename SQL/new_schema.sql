@@ -24,10 +24,14 @@ CREATE DATABASE glims_v2 WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE 
 
 
 ALTER DATABASE glims_v2 OWNER TO braup;
-CREATE SCHEMA data;
-SET search_path TO data, public;
 
 \connect glims_v2
+
+CREATE SCHEMA data;
+
+ALTER DATABASE glims_v2 SET search_path TO data, public;
+
+CREATE EXTENSION postgis SCHEMA data;
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
