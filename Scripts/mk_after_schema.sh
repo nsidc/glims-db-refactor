@@ -46,13 +46,13 @@ pg_dump --schema-only --create                      \
         --table='status_def'                        \
         --table='tongue_activity_valids'            \
         -U braup glims                              |
-        sed -E 's/(ALTER DATABASE.*$)/\1\nCREATE SCHEMA data;\nSET search_path TO data, public;/' |
         sed 's/glacier_polygons/glacier_entities/g' |
         sed 's/glacier_polys/entity_geom/g'         |
         sed 's/line_type text/line_type smallint/'  |
         sed '/enforce_dims_entity_geom/d'           |
         sed '/enforce_geotype_entity_geom/d'        |
         sed 's/public/data/g'                       |
+        sed -E 's/(ALTER DATABASE.*$)/\1\nCREATE SCHEMA data;\nSET search_path TO data, public;/' |
         sed 's/DATABASE glims/DATABASE glims_v2/'   |
         sed 's/Name: glims/Name: glims_v2/'         |
         sed 's/connect glims/connect glims_v2/'    \
