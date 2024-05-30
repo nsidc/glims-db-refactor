@@ -93,9 +93,9 @@ def get_tables_list(debug=False):
 
     if debug:
         #rtndict = {'image': ()}  # to fix the datetime.datetime issue
-        rtndict = {'glacier_polygons': ()}  # for meat of the data transform
+        #rtndict = {'glacier_polygons': ()}  # for meat of the data transform
         #rtndict = {'country': ()}  # for case with a geometry column
-        #rtndict = {'reference_document': ()}  # for simple scalar case
+        rtndict = {'reference_document': ()}  # for simple scalar case
         return rtndict
 
     tables = OrderedDict(
@@ -165,7 +165,7 @@ def connect_to_db():
     dbh_old  = db_old.cursor()
 
     # Until we have the new database, just return old and None
-    return (dbh_old, None)
+    #return (dbh_old, None)
 
     try:
         db_new = psycopg2.connect(CONN_V2)
@@ -324,11 +324,40 @@ def old_to_new_data_model(query_results, args):
 def insert_row_as_simple_copy(T, row):
     ''' insert_row_as_simple_copy -- print or do INSERT of unchanged row to unchanged table
     '''
+
+    # DEBUG
+    if row[0] == 8:
+        types = [type(e) for e in row]
+        print("Types of row:\n", list(zip(row, types)), file=sys.stderr)
+
+    row_fixed = tuple([e.isoformat() if type(e) is datetime.datetime else e for e in row])
+    row_fixed = tuple([fix_quotes(e) for e in row_fixed])
     row_fixed = tuple(['NULL' if e is None else e for e in row])
-    row_fixed = tuple([e.isoformat() if type(e) is datetime.datetime else e for e in row_fixed])
     sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
     sql_out = sql_out.replace("'NULL'", 'NULL')
     return sql_out
+
+
+def fix_quotes(e):
+    ''' fix_quotes -- Make double-single quoting conform to what Postgresql needs.
+
+        Example:
+
+        "This is X"avier's book"
+
+        becomes
+
+        'This is X"avier''s book'
+
+    '''
+    if type(e) is str:
+        no_outer = e.strip('"').strip("'")
+        no_outer = no_outer.replace("'", "''")
+        final = f"'{no_outer}'"
+    else:
+        final = e
+
+    return final
 
 
 def do_db_move(args):

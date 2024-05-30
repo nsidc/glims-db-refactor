@@ -62,6 +62,32 @@ Y
     return entity_list
 
 
+def test_fix_quotes():
+    teststring = '"This is X"avier\'s book"'
+    expect = "'This is X\"avier''s book'"
+    got = mv.fix_quotes(teststring)
+    print('   got = ', got)
+    print('expect = ', expect)
+    assert(got == expect)
+
+
+def test_fix_quotes_real():
+    teststring = '"Global Land Ice Measurements from Space (GLIMS): Remote Sensing and GIS Investigations of the Earth\'s Cryosphere"'
+    expect     = "'Global Land Ice Measurements from Space (GLIMS): Remote Sensing and GIS Investigations of the Earth''s Cryosphere'"
+    got = mv.fix_quotes(teststring)
+    print('   got = ', got)
+    print('expect = ', expect)
+    assert(got == expect)
+
+def test_fix_quotes_real2():
+    teststring = '"Kilimanjaro\'s Secrets Revealed"'
+    expect     = "'Kilimanjaro''s Secrets Revealed'"
+    got = mv.fix_quotes(teststring)
+    print('   got = ', got)
+    print('expect = ', expect)
+    assert(got == expect)
+
+
 def test_as_tuple():
     testdata = _make_test_data()
     in_tuple = testdata[0]
@@ -95,6 +121,8 @@ def test_insert_row_as_simple_copy():
     row = (1, 2, None, 'abcde')
     expect = "INSERT INTO the_table VALUES (1, 2, NULL, 'abcde');"
     got = mv.insert_row_as_simple_copy(T, row)
+    print('   got = ', got)
+    print('expect = ', expect)
     assert(expect == got)
 
 
