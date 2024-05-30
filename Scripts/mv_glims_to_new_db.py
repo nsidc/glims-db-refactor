@@ -12,7 +12,6 @@ import datetime
 import argparse
 from collections import OrderedDict
 from collections import defaultdict
-from pprint import pprint
 
 import psycopg2
 from shapely.geometry import Polygon
@@ -323,18 +322,24 @@ def old_to_new_data_model(query_results, args):
 
 def insert_row_as_simple_copy(T, row):
     ''' insert_row_as_simple_copy -- print or do INSERT of unchanged row to unchanged table
+
+        Because Postgresql expects strings with single quotes in them to look like this:
+
+            'This is SQL''s single quote mechanism'
+
+        and because Python interpolates strings with single quotes in them by putting double quotes around them as
+
+            "This is SQL's single quote mechanism"
+
+        I've used QQ as a stand-in for '', do the interpolation, then replace the QQ with '' after.  Ugh.
     '''
 
-    # DEBUG
-    if row[0] == 8:
-        types = [type(e) for e in row]
-        print("Types of row:\n", list(zip(row, types)), file=sys.stderr)
-
-    row_fixed = tuple([e.isoformat() if type(e) is datetime.datetime else e for e in row])
-    row_fixed = tuple([fix_quotes(e) for e in row_fixed])
-    row_fixed = tuple(['NULL' if e is None else e for e in row])
+    row_fixed = [e.isoformat() if type(e) is datetime.datetime else e for e in row]
+    row_fixed = [fix_quotes(e) for e in row_fixed]
+    row_fixed = tuple(['NULL' if e is None else e for e in row_fixed])
     sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
     sql_out = sql_out.replace("'NULL'", 'NULL')
+    sql_out = sql_out.replace('QQ', "''")
     return sql_out
 
 
@@ -343,17 +348,21 @@ def fix_quotes(e):
 
         Example:
 
-        "This is X"avier's book"
+            "This is X"avier's book"
 
         becomes
 
-        'This is X"avier''s book'
+            'This is X"avierQQs book'
+
+        which the function insert_row_as_simple_copy will change to
+
+            'This is X"avier''s book'
 
     '''
     if type(e) is str:
-        no_outer = e.strip('"').strip("'")
-        no_outer = no_outer.replace("'", "''")
-        final = f"'{no_outer}'"
+        no_outer = e.strip('"\'')
+        no_outer = no_outer.replace("'", 'QQ')
+        final = f"{no_outer}"
     else:
         final = e
 
@@ -370,7 +379,6 @@ def do_db_move(args):
     if tables is not None:
         print("Got table list:", file=sys.stderr)
         print(list(tables.keys()), file=sys.stderr)
-        #pprint(list(tables.keys()), file=sys.stderr)
     else:
         print("Something is wrong with table definition", file=sys.stderr)
 
