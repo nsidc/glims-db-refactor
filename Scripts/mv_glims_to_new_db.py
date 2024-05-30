@@ -93,8 +93,8 @@ def get_tables_list(debug=False):
     if debug:
         #rtndict = {'image': ()}  # to fix the datetime.datetime issue
         #rtndict = {'glacier_polygons': ()}  # for meat of the data transform
-        #rtndict = {'country': ()}  # for case with a geometry column
-        rtndict = {'reference_document': ()}  # for simple scalar case
+        #rtndict = {'country': ()}  # for case with a geometry column WORKS
+        rtndict = {'reference_document': ()}  # for simple scalar case WORKS
         return rtndict
 
     tables = OrderedDict(
@@ -334,7 +334,7 @@ def insert_row_as_simple_copy(T, row):
         I've used QQ as a stand-in for '', do the interpolation, then replace the QQ with '' after.  Ugh.
     '''
 
-    row_fixed = [e.isoformat() if type(e) is datetime.datetime else e for e in row]
+    row_fixed = [e.isoformat() if type(e) in (datetime.date, datetime.time, datetime.datetime) else e for e in row]
     row_fixed = [fix_quotes(e) for e in row_fixed]
     row_fixed = tuple(['NULL' if e is None else e for e in row_fixed])
     sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
