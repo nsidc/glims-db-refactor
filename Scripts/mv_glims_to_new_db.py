@@ -35,8 +35,9 @@ def setup_argument_parser():
     p = argparse.ArgumentParser()
 
     p.add_argument('-b', '--bbox', default='all',  help=b_help)
-    p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode')
-    p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages")
+    p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
+    p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
+    p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
     return(p)
 
@@ -178,6 +179,16 @@ def connect_to_db():
     return (dbh_old, dbh_new)
 
 
+def issue_sql(sql, dbh_new, args):
+    '''
+    Depending on command-line options, either print the SQL to stdout or run it on the database.
+    '''
+    if args.write_to_db:
+        pass
+    else:
+        print(sql, file=sys.stdout)
+
+
 def process_glacier_entities(T, dbh_old, dbh_new, args):
     '''
     process_glacier_entities -- Top-level routine for moving glacier_polygons to glacier_entities
@@ -213,7 +224,7 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
         print(f"Printing {len(move_sql)} SQL statements...", file=sys.stderr)
 
     for m in move_sql:
-        print(m)
+        issue_sql(m, dbh_new, args)
 
 
 def old_to_new_data_model(query_results, args):
@@ -388,7 +399,7 @@ def do_db_move(args):
     dbh_old, dbh_new = connect_to_db()
 
     # Start transaction for all SQL
-    print('BEGIN;')
+    issue_sql('BEGIN;', dbh_new, args)
 
     for T in tables.keys():
         # Default is a simple copy to the new db
@@ -415,7 +426,7 @@ def do_db_move(args):
             sql = f'SELECT * from {T} {sort_by};'
             dbh_old.execute(sql)
             for row in dbh_old.fetchall():
-                print(insert_row_as_simple_copy(T, row))
+                issue_sql(insert_row_as_simple_copy(T, row), dbh_new, args)
 
 
 def main():
