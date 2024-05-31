@@ -37,20 +37,10 @@ def setup_argument_parser():
     p.add_argument('-b', '--bbox', default='all',  help=b_help)
     p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
+    p.add_argument('-t', '--transaction',   action='store_true', default=False, help="Execute SQL as single transaction.")
     p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
     return(p)
-
-
-def connect_to_db():
-    try:
-        conn = psycopg2.connect(CONN)
-    except:
-        print(f"Unable to connect to the {dbname} database at {srv}", file=sys.stderr)
-        sys.exit(1)
-
-    dbh  = conn.cursor()
-    return dbh
 
 
 def get_tables_list(debug=False):
@@ -155,7 +145,6 @@ def check_table_dependencies(tables):
     return True
 
 
-
 def connect_to_db():
     try:
         db_old = psycopg2.connect(CONN)
@@ -163,10 +152,7 @@ def connect_to_db():
         print(f"Unable to connect to the old database.", file=sys.stderr)
         sys.exit(1)
 
-    dbh_old  = db_old.cursor()
-
-    # Until we have the new database, just return old and None
-    #return (dbh_old, None)
+    dbh_old_cur  = db_old.cursor()
 
     try:
         db_new = psycopg2.connect(CONN_V2)
@@ -174,22 +160,26 @@ def connect_to_db():
         print(f"Unable to connect to the new database.", file=sys.stderr)
         sys.exit(1)
 
-    dbh_new  = db_new.cursor()
+    dbh_new_cur  = db_new.cursor()
 
-    return (dbh_old, dbh_new)
+    return (dbh_old_cur, dbh_new_cur)
 
 
-def issue_sql(sql, dbh_new, args):
+def issue_sql(sql, dbh_new_cur, args):
     '''
     Depending on command-line options, either print the SQL to stdout or run it on the database.
     '''
     if args.write_to_db:
-        pass
+        try:
+            dbh_new_cur.execute(sql)
+        except:
+            print("Execution of the following SQL failed.  Stopping.\n", sql, file=sys.stderr)
+            sys.exit(1)
     else:
         print(sql, file=sys.stdout)
 
 
-def process_glacier_entities(T, dbh_old, dbh_new, args):
+def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     '''
     process_glacier_entities -- Top-level routine for moving glacier_polygons to glacier_entities
 
@@ -212,8 +202,8 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
         region = f"ST_GeomFromEWKT('SRID=4326;POLYGON(({W} {S}, {E} {S}, {E} {N}, {W} {N}, {W} {S}))')"
         sql = base_query + f' AND {region} && {T}.glacier_polys'
 
-    dbh_old.execute(sql)
-    query_results = dbh_old.fetchall()      # list of tuples
+    dbh_old_cur.execute(sql)
+    query_results = dbh_old_cur.fetchall()      # list of tuples
 
     if not args.quiet:
         print(f"Selected {len(query_results)} records from table {T}", file=sys.stderr)
@@ -224,7 +214,7 @@ def process_glacier_entities(T, dbh_old, dbh_new, args):
         print(f"Printing {len(move_sql)} SQL statements...", file=sys.stderr)
 
     for m in move_sql:
-        issue_sql(m, dbh_new, args)
+        issue_sql(m, dbh_new_cur, args)
 
 
 def old_to_new_data_model(query_results, args):
@@ -396,17 +386,18 @@ def do_db_move(args):
         print("Something is wrong with table definition", file=sys.stderr)
 
     # Open connections to both databases
-    dbh_old, dbh_new = connect_to_db()
+    dbh_old_cur, dbh_new_cur = connect_to_db()
 
     # Start transaction for all SQL
-    issue_sql('BEGIN;', dbh_new, args)
+    if args.transaction:
+        issue_sql('BEGIN;', dbh_new_cur, args)
 
     for T in tables.keys():
         # Default is a simple copy to the new db
         if T in ('glacier_polygons'):
             if not args.quiet:
                 print("Processing 'glacier_polygons' table ...", file=sys.stderr)
-            process_glacier_entities(T, dbh_old, dbh_new, args)
+            process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args)
         else:
             # Simple copy
             # Can pg_dump/pg_restore be part of this? Nah...
@@ -424,9 +415,12 @@ def do_db_move(args):
                 sort_by = ''
 
             sql = f'SELECT * from {T} {sort_by};'
-            dbh_old.execute(sql)
-            for row in dbh_old.fetchall():
-                issue_sql(insert_row_as_simple_copy(T, row), dbh_new, args)
+            dbh_old_cur.execute(sql)
+            for row in dbh_old_cur.fetchall():
+                issue_sql(insert_row_as_simple_copy(T, row), dbh_new_cur, args)
+
+    if args.transaction:
+        issue_sql('COMMIT;', dbh_new_cur, args)
 
 
 def main():
