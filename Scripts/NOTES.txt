@@ -1,3 +1,9 @@
 2024-05-23
 
 Created glacier entity object, so now need to redo the tests.
+
+
+2024-05-30
+
+Parent RCs must be in the DB before the children.  A sort on rc_id takes
+care of this.

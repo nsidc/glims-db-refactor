@@ -9,6 +9,7 @@ and write to the new database.
 import os
 import sys
 import datetime
+import decimal
 import argparse
 from collections import OrderedDict
 from collections import defaultdict
@@ -335,6 +336,7 @@ def insert_row_as_simple_copy(T, row):
     '''
 
     row_fixed = [e.isoformat() if type(e) in (datetime.date, datetime.time, datetime.datetime) else e for e in row]
+    row_fixed = [int(e) if type(e) is decimal.Decimal else e for e in row_fixed]
     row_fixed = [fix_quotes(e) for e in row_fixed]
     row_fixed = tuple(['NULL' if e is None else e for e in row_fixed])
     sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
@@ -402,7 +404,15 @@ def do_db_move(args):
             if not args.quiet:
                 print(f"Processing '{T}' table ...", file=sys.stderr)
 
-            sql = f'SELECT * from {T};'
+            sort_orders = {'regional_centers': 'rc_id',
+                          }
+
+            if T in sort_orders:
+                sort_by = f'ORDER BY {sort_orders[T]}'
+            else:
+                sort_by = ''
+
+            sql = f'SELECT * from {T} {sort_by};'
             dbh_old.execute(sql)
             for row in dbh_old.fetchall():
                 print(insert_row_as_simple_copy(T, row))
