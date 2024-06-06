@@ -32,7 +32,7 @@ def setup_argument_parser():
     """Set up command line options.  -h or --help for help is automatic"""
     b_help = 'Bounding box to define region for move. Format: --bbox=W,E,S,N'
     G_help = 'Copy all tables from "glacier_entities" on. Previous tables should be in the new DB already.'
-    T_help = 'Copy all tables up to, but not including, "glacier_entities". All other tables should be in the new DB already.'
+    T_help = 'Copy all tables up to, but not including, "glacier_entities".'
 
     p = argparse.ArgumentParser()
 
