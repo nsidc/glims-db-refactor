@@ -21,6 +21,13 @@ The main changes to the GLIMS Glacier Database will be:
     * Nunataks will be represented as holes in the boundary polygon;
     * Formerly 3-D polygons ("POLYGON Z") will be 2-D ("POLYGON")
 
+# Testing
+
+At least one of the unit tests requires a connection to the database, so
+the test suite should be run as, for example,
+
+    GLIMS_DB_RO=<pw1> GLIMS_DB_RW=<pw2> nosetests
+
 ## Level of Support
 
 If you discover any problems or bugs, please submit an Issue. If you would

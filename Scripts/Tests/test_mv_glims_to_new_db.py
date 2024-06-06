@@ -1,9 +1,13 @@
+import sys
+
 import shapely
 from shapely.geometry import Polygon
 from shapely.wkt import loads as sloads
+import psycopg2
 
 import mv_glims_to_new_db as mv
 from db_objs import Glacier_entity
+from connection import CONN_V2
 
 
 def _make_test_data():
@@ -119,7 +123,7 @@ def test_as_ewkt_with_srid():
 def test_insert_row_as_simple_copy1():
     T = 'the_table'
     row = (1, 2, None, 'abcde')
-    expect = "INSERT INTO the_table VALUES (1, 2, NULL, 'abcde');"
+    expect = "INSERT INTO data.the_table VALUES (1, 2, NULL, 'abcde');"
     got = mv.insert_row_as_simple_copy(T, row)
     print('   got = ', got)
     print('expect = ', expect)
@@ -129,7 +133,7 @@ def test_insert_row_as_simple_copy1():
 def test_insert_row_as_simple_copy2():
     T = 'the_table'
     row = (1, 2, None, '"abcde"')
-    expect = "INSERT INTO the_table VALUES (1, 2, NULL, 'abcde');"
+    expect = "INSERT INTO data.the_table VALUES (1, 2, NULL, 'abcde');"
     got = mv.insert_row_as_simple_copy(T, row)
     print('   got = ', got)
     print('expect = ', expect)
@@ -226,8 +230,21 @@ def test_testdata_multiple_holes():
     assert(outer_area == 54.0 and combined_area == 42.0)
 
 
+def test_count_recs():
+    try:
+        db_new = psycopg2.connect(CONN_V2)
+        dbh_new_cur  = db_new.cursor()
+        got = mv.count_recs('reference_document', dbh_new_cur)
+        expect = 0
+        assert(got == expect)
+    except:
+        print(f"test_count_recs:  Unable to connect to the new database.", file=sys.stderr)
+        assert(0 == 1)
+
+
 def test_old_to_new_data_model():
     '''
     Test full representation of test data in new data model
     '''
     testdata = _make_test_data()
+    pass

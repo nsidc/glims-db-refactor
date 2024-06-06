@@ -18,7 +18,7 @@ import psycopg2
 from shapely.geometry import Polygon
 from shapely.wkt import loads as sloads
 
-from connection import CONN, CONN_V2
+from connection import CONN, CONN_V2, SCHEMA
 from db_objs import Glacier_entity
 
 
@@ -31,19 +31,24 @@ def print_arg_summary(args):
 def setup_argument_parser():
     """Set up command line options.  -h or --help for help is automatic"""
     b_help = 'Bounding box to define region for move. Format: --bbox=W,E,S,N'
+    G_help = 'Copy all tables from "glacier_entities" on. Previous tables should be in the new DB already.'
+    T_help = 'Copy all tables up to, but not including, "glacier_entities". All other tables should be in the new DB already.'
 
     p = argparse.ArgumentParser()
 
     p.add_argument('-b', '--bbox', default='all',  help=b_help)
     p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
+    p.add_argument('-G', '--from_Glacier_entities', action='store_true',  help=G_help)
+    p.add_argument('-L', '--list_tables', action='store_true',  help='Show table list and exit')
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
+    p.add_argument('-T', '--To_glacier_entities', action='store_true',  help=T_help)
     p.add_argument('-t', '--transaction',   action='store_true', default=False, help="Execute SQL as single transaction.")
     p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
     return(p)
 
 
-def get_tables_list(debug=False):
+def get_tables_list(debug=False, from_glacents=False, to_glacents=False):
     '''
     get_tables_list -- Return a list of tables in order of dependency
 
@@ -84,9 +89,55 @@ def get_tables_list(debug=False):
 
     if debug:
         #rtndict = {'image': ()}  # to fix the datetime.datetime issue
-        #rtndict = {'glacier_polygons': ()}  # for meat of the data transform
+        rtndict = {'glacier_polygons': ()}  # for meat of the data transform
         #rtndict = {'country': ()}  # for case with a geometry column WORKS
-        rtndict = {'reference_document': ()}  # for simple scalar case WORKS
+        #rtndict = {'reference_document': ()}  # for simple scalar case WORKS
+        return rtndict
+
+    if from_glacents:
+        # All other tables should be in new DB already
+        rtndict = OrderedDict(
+                      [('glacier_polygons', ('glacier_dynamic',)),
+                       ('glacier_countries', ('glacier_static', 'country')),
+                       ('glacier_map_info', ('map_metadata', 'glacier_dynamic')),
+                      ]
+                 )
+        return rtndict
+
+    if to_glacents:
+        # All other tables should be in new DB already
+        rtndict = OrderedDict(
+                    [
+                        ('reference_document', ()),
+                        ('dominant_mass_source_valids', ()),
+                        ('form_valids', ()),
+                        ('frontal_characteristics_valids', ()),
+                        ('lon_char_valids', ()),
+                        ('primary_classification_valids', ()),
+                        ('tongue_activity_valids', ()),
+                        ('glims_table_fields', ()),
+                        ('gtng_order1regions', ()),
+                        ('gtng_order2regions', ()),
+                        ('glims_field_dictionary', ()),
+                        ('instrument', ()),
+                        ('country', ()),
+                        ('status_def', ()),
+                        ('map_metadata', ()),
+                        ('image', ('instrument',)),
+                        ('people', ('country',)),
+                        ('regional_centers', ('people',)),
+                        ('rc_people', ('regional_centers', 'people')),
+                        ('submission_info', ('people', 'regional_centers')),
+                        ('submission_analyst', ('submission_info', 'people')),
+                        ('glacier_static', ('submission_info',)),
+                        ('glacier_reference', ('glacier_static', 'reference_document')),
+                        ('glacier_dynamic', ('glacier_static', 'people', 'submission_info', 'regional_centers')),
+                        ('glacier_image_info', ('glacier_dynamic', 'image')),
+                        ('area_histogram', ('glacier_dynamic',)),
+                        ('area_histogram_data', ('area_histogram',)),
+                    ]
+                  )
+
         return rtndict
 
     tables = OrderedDict(
@@ -169,11 +220,15 @@ def issue_sql(sql, dbh_new_cur, args):
     '''
     Depending on command-line options, either print the SQL to stdout or run it on the database.
     '''
+    if args.debug:
+        print("issue_sql:  Input SQL:\n    ", sql, file=sys.stderr)
+
     if args.write_to_db:
         try:
-            dbh_new_cur.execute(sql)
-        except:
-            print("Execution of the following SQL failed.  Stopping.\n", sql, file=sys.stderr)
+            dbh_new_cur.execute(sql.rstrip(';'))
+        except psycopg2.Error as e:
+            print("Execution of the following SQL failed.  Stopping.", file=sys.stderr)
+            print(f"Error message:  {e}.\n", file=sys.stderr)
             sys.exit(1)
     else:
         print(sql, file=sys.stdout)
@@ -211,7 +266,7 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     move_sql = old_to_new_data_model(query_results, args)
 
     if not args.quiet:
-        print(f"Printing {len(move_sql)} SQL statements...", file=sys.stderr)
+        print(f"Issuing {len(move_sql)} SQL statements...", file=sys.stderr)
 
     for m in move_sql:
         issue_sql(m, dbh_new_cur, args)
@@ -270,7 +325,7 @@ def old_to_new_data_model(query_results, args):
     for row in query_results:
         gl_obj = Glacier_entity(row)
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
-            move_sql.append(insert_row_as_simple_copy(T, row))
+            move_sql.append(insert_row_as_simple_copy('glacier_entities', row))
         elif gl_obj.line_type == 'glac_bound':
             bounds_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
@@ -284,8 +339,8 @@ def old_to_new_data_model(query_results, args):
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
-        if not args.quiet:
-            print(f'{gid}:  Got {len(gl_obj_list)} piece(s)', file=sys.stderr)
+        if not args.quiet and len(gl_obj_list) > 1:
+            print(f'{gid}:  Got {len(gl_obj_list)} piece', file=sys.stderr)
 
         if len(gl_obj_list) > 1:
             # multiple glac_bound polys for this glacier
@@ -315,7 +370,7 @@ def old_to_new_data_model(query_results, args):
             #     -18.225269 79.932970 0, -18.225888 79.932975 0, -18.225858 79.933083 0))'));
 
             geom_part = f"ST_GeomFromEWKT('{bound_obj.as_ewkt_with_srid()}')"
-            sql = f'INSERT INTO glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
+            sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
                   + f"({bound_obj.aid}, '{bound_obj.line_type}', {geom_part});"
             move_sql.append(sql)
 
@@ -340,7 +395,7 @@ def insert_row_as_simple_copy(T, row):
     row_fixed = [int(e) if type(e) is decimal.Decimal else e for e in row_fixed]
     row_fixed = [fix_quotes(e) for e in row_fixed]
     row_fixed = tuple(['NULL' if e is None else e for e in row_fixed])
-    sql_out = f'INSERT INTO {T} VALUES {row_fixed};'
+    sql_out = f'INSERT INTO {SCHEMA}.{T} VALUES {row_fixed};'
     sql_out = sql_out.replace("'NULL'", 'NULL')
     sql_out = sql_out.replace('QQ', "''")
     return sql_out
@@ -372,21 +427,42 @@ def fix_quotes(e):
     return final
 
 
+def count_recs(T, dbh_cur):
+    '''
+    Count number of records in table T, database handle dbh
+    '''
+    count_sql = f'SELECT COUNT(*) FROM {SCHEMA}.{T}'
+    dbh_cur.execute(count_sql)
+    cnt = int(dbh_cur.fetchone()[0])
+    return cnt
+
+
 def do_db_move(args):
     """
     Do major steps to move the database.
     """
 
-    tables = get_tables_list(debug=args.debug)
+    tables = get_tables_list(debug=args.debug, from_glacents=args.from_Glacier_entities,
+             to_glacents=args.To_glacier_entities)
 
     if tables is not None:
-        print("Got table list:", file=sys.stderr)
+        print("Table list:", file=sys.stderr)
         print(list(tables.keys()), file=sys.stderr)
     else:
         print("Something is wrong with table definition", file=sys.stderr)
+        sys.exit(1)
+
+    if args.list_tables:
+        sys.exit(2)
 
     # Open connections to both databases
     dbh_old_cur, dbh_new_cur = connect_to_db()
+
+    # Do sanity check if option from_Glacier_entities is True
+    if args.from_Glacier_entities:
+        if count_recs('reference_document', dbh_new_cur) == 0:
+            print('from_Glacier_entities flag specified but other tables are empty', file=sys.stderr)
+            sys.exit(1)
 
     # Start transaction for all SQL
     if args.transaction:
