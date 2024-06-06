@@ -1606,6 +1606,8 @@ ALTER TABLE ONLY data.submission_info
 -- Name: DATABASE glims_v2; Type: ACL; Schema: -; Owner: braup
 --
 
+GRANT ALL ON SCHEMA data TO glims_rw;
+
 REVOKE CONNECT,TEMPORARY ON DATABASE glims_v2 FROM PUBLIC;
 GRANT CONNECT ON DATABASE glims_v2 TO glims_rc;
 GRANT CONNECT,TEMPORARY ON DATABASE glims_v2 TO glims_ro;
