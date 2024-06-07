@@ -42,7 +42,6 @@ def setup_argument_parser():
     p.add_argument('-L', '--list_tables', action='store_true',  help='Show table list and exit')
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
     p.add_argument('-T', '--To_glacier_entities', action='store_true',  help=T_help)
-    p.add_argument('-t', '--transaction',   action='store_true', default=False, help="Execute SQL as single transaction.")
     p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
     return(p)
@@ -89,9 +88,9 @@ def get_tables_list(debug=False, from_glacents=False, to_glacents=False):
 
     if debug:
         #rtndict = {'image': ()}  # to fix the datetime.datetime issue
-        rtndict = {'glacier_polygons': ()}  # for meat of the data transform
+        #rtndict = {'glacier_polygons': ()}  # for meat of the data transform
         #rtndict = {'country': ()}  # for case with a geometry column WORKS
-        #rtndict = {'reference_document': ()}  # for simple scalar case WORKS
+        rtndict = {'reference_document': ()}  # for simple scalar case WORKS
         return rtndict
 
     if from_glacents:
@@ -207,8 +206,8 @@ def connect_to_db():
 
     try:
         db_new = psycopg2.connect(CONN_V2)
-    except:
-        print(f"Unable to connect to the new database.", file=sys.stderr)
+    except psycopg2.Error as e:
+        print(f"Unable to connect to the new database: {e}", file=sys.stderr)
         sys.exit(1)
 
     dbh_new_cur  = db_new.cursor()
@@ -464,10 +463,6 @@ def do_db_move(args):
             print('from_Glacier_entities flag specified but other tables are empty', file=sys.stderr)
             sys.exit(1)
 
-    # Start transaction for all SQL
-    if args.transaction:
-        issue_sql('BEGIN;', dbh_new_cur, args)
-
     for T in tables.keys():
         # Default is a simple copy to the new db
         if T in ('glacier_polygons'):
@@ -495,8 +490,8 @@ def do_db_move(args):
             for row in dbh_old_cur.fetchall():
                 issue_sql(insert_row_as_simple_copy(T, row), dbh_new_cur, args)
 
-    if args.transaction:
-        issue_sql('COMMIT;', dbh_new_cur, args)
+    # psycopg2 uses transactions by default, which must be commited
+    issue_sql('COMMIT;', dbh_new_cur, args)
 
 
 def main():
@@ -505,8 +500,6 @@ def main():
     Main entry point of the program.
 
     Steps to moving database:
-
-    - Start a transaction.
 
     - Read from physical tables, in order of dependencies, transforming data
       when necessary.
