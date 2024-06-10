@@ -7,3 +7,10 @@ Created glacier entity object, so now need to redo the tests.
 
 Parent RCs must be in the DB before the children.  A sort on rc_id takes
 care of this.
+
+
+2024-06-10
+
+After copying database, I think the autoincrement indices will need to be
+reset with ALTER SEQUENCE.  See
+https://www.postgresql.org/docs/current/sql-altersequence.html
