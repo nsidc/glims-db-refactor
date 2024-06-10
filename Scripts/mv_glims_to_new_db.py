@@ -219,6 +219,7 @@ def issue_sql(sql, dbh_new_cur, args):
     '''
     Depending on command-line options, either print the SQL to stdout or run it on the database.
     '''
+
     if args.debug:
         print("issue_sql:  Input SQL:\n    ", sql, file=sys.stderr)
 
@@ -324,7 +325,8 @@ def old_to_new_data_model(query_results, args):
     for row in query_results:
         gl_obj = Glacier_entity(row)
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
-            move_sql.append(insert_row_as_simple_copy('glacier_entities', row))
+            row_no_gid = row[1:]
+            move_sql.append(insert_row_as_simple_copy('glacier_entities', row_no_gid))
         elif gl_obj.line_type == 'glac_bound':
             bounds_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
@@ -339,7 +341,7 @@ def old_to_new_data_model(query_results, args):
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
         if not args.quiet and len(gl_obj_list) > 1:
-            print(f'{gid}:  Got {len(gl_obj_list)} piece', file=sys.stderr)
+            print(f'{gid}:  Got {len(gl_obj_list)} pieces', file=sys.stderr)
 
         if len(gl_obj_list) > 1:
             # multiple glac_bound polys for this glacier
