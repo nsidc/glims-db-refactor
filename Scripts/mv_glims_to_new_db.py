@@ -341,7 +341,7 @@ def old_to_new_data_model(query_results, args):
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
         if len(gl_obj_list) > 1:
-            # multiple glac_bound polys for this glacier
+            # Multiple glac_bound polys for this glacier (NOT multi-polygon.)
             print(f"Warning: Found multiple ({len(gl_obj_list)}) glac_bound outlines for {gid}", file=sys.stderr)
             pass
         else:

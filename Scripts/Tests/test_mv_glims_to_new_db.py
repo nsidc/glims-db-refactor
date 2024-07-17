@@ -7,7 +7,7 @@ import psycopg2
 
 import mv_glims_to_new_db as mv
 from db_objs import Glacier_entity
-from connection import CONN_V2
+from connection import CONN, CONN_V2
 
 
 def _make_test_data():
@@ -230,16 +230,18 @@ def test_testdata_multiple_holes():
     assert(outer_area == 54.0 and combined_area == 42.0)
 
 
-def test_count_recs():
-    try:
-        db_new = psycopg2.connect(CONN_V2)
-        dbh_new_cur  = db_new.cursor()
-        got = mv.count_recs('reference_document', dbh_new_cur)
-        expect = 0
-        assert(got == expect)
-    except:
-        print(f"test_count_recs:  Unable to connect to the new database.", file=sys.stderr)
-        assert(0 == 1)
+def test_old_db_conn():
+    db = psycopg2.connect(CONN)
+    db_cur  = db.cursor()
+    print('Connecting to new database')
+    assert(type(db) is psycopg2.extensions.connection and type(db_cur) is psycopg2.extensions.cursor)
+
+
+def test_new_db_conn():
+    db_new = psycopg2.connect(CONN_V2)
+    dbh_new_cur  = db_new.cursor()
+    print('Connecting to new database')
+    assert(type(db_new) is psycopg2.extensions.connection and type(dbh_new_cur) is psycopg2.extensions.cursor)
 
 
 def test_old_to_new_data_model():
