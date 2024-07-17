@@ -230,18 +230,9 @@ def test_testdata_multiple_holes():
     assert(outer_area == 54.0 and combined_area == 42.0)
 
 
-def test_old_db_conn():
-    db = psycopg2.connect(CONN)
-    db_cur  = db.cursor()
-    print('Connecting to new database')
-    assert(type(db) is psycopg2.extensions.connection and type(db_cur) is psycopg2.extensions.cursor)
-
-
-def test_new_db_conn():
-    db_new = psycopg2.connect(CONN_V2)
-    dbh_new_cur  = db_new.cursor()
-    print('Connecting to new database')
-    assert(type(db_new) is psycopg2.extensions.connection and type(dbh_new_cur) is psycopg2.extensions.cursor)
+def test_connect_to_db():
+    old_cur, new_cur = mv.connect_to_db()
+    assert(type(old_cur) is psycopg2.extensions.cursor and type(new_cur) is psycopg2.extensions.cursor)
 
 
 def test_old_to_new_data_model():
