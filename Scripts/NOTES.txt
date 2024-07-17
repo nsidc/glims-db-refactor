@@ -14,3 +14,48 @@ care of this.
 After copying database, I think the autoincrement indices will need to be
 reset with ALTER SEQUENCE.  See
 https://www.postgresql.org/docs/current/sql-altersequence.html
+
+
+2024-07-17
+
+Cases involving multi-part polygons could be complex.  Here are some I can
+think of:
+
+1.  Simple:  A small number of parts.  Each part gets its own GLIMS glacier
+    ID, possibly reusing the one that was assigned to the group.  Would
+    then need to (pseudocode):
+
+    for p in parts:
+        - Give p a new GLIMS glacier ID,
+        - Put new entry in glacier_static for this "new" outline,
+        - Combine any intrnl_rock outlines contained by p as a hole,
+        - Write to glacier_dynamic and glacier_entities
+
+2.  Other entities:  Same as above, but there are debris-cover, lake, etc.
+    outlines that have the same glacier ID as the group.  Then need to
+    (copying some steps from above):
+
+    for p in parts:
+        - Give p a new GLIMS glacier ID,
+        - Put new entry in glacier_static for this "new" outline,
+        - Combine any intrnl_rock outlines contained by p as a hole,
+        - Write to glacier_dynamic and glacier_entities
+        - Go through all other entities (in whole input data set?  Just
+          those tagged with the group glacier ID?), and for each entity
+          contained in p, assign the entity the same new glacier ID, then
+        - write to the glacier_entities table
+
+These can be combined into one:
+
+    for p in parts:
+        Give p a new GLIMS glacier ID -> g_id.
+        Determine what analysis_id p will have -> a_id.
+        Write new entry in glacier_static for this "new" outline.
+
+        for n in intrnl_rock outlines with this group ID:
+            If n is contained by p, combine n into p as a "hole".
+
+        for e in all other entities (with same ID? or whole data set? Latter is slower but safer.):
+            If e is contained in p, assign g_id and a_id to e.
+
+        Write "holey" p, [n, ...], and [e, ...] to the glacier_entities table (with g_id, a_id).
