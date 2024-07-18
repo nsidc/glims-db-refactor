@@ -316,17 +316,16 @@ def old_to_new_data_model(query_results, args):
     bounds_by_glac_id = defaultdict(list)
     rocks_by_glac_id = defaultdict(list)
     orphan_rocks_by_glac_id = defaultdict(list)
-    new_glac_rec_by_glac_id = defaultdict(list)
+    misc_entities_by_glac_id = defaultdict(list)
+    #new_glac_rec_by_glac_id = defaultdict(list)
     move_sql = []  # List of SQL statements to insert into the new DB
 
-    # Copy non-glacier-bounds entities directly, or collect
-    # glacier-bounds/intrnl_rock entities for further processing.
+    # Bin the results by entity type
 
     for row in query_results:
         gl_obj = Glacier_entity(row)
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
-            row_no_gid = row[1:]
-            move_sql.append(insert_row_as_simple_copy('glacier_entities', row_no_gid))
+            misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
             bounds_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
@@ -340,10 +339,49 @@ def old_to_new_data_model(query_results, args):
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
-        if len(gl_obj_list) > 1:
-            # Multiple glac_bound polys for this glacier (NOT multi-polygon.)
-            print(f"Warning: Found multiple ({len(gl_obj_list)}) glac_bound outlines for {gid}", file=sys.stderr)
-            pass
+        bound_objs_to_ingest = []  # single item or list from multi-polygons
+
+        if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type == 'MultiPolygon':
+            print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
+
+            # Put all boundary parts into a list of single polygons, even if
+            # objects in gl_obj_list are multipolygons. (list(multipolygon) puts
+            # the parts as single polygons into a list).  If the part is
+            # a single polygon, then the "except" branch is run.
+
+            parts = []
+            for obj in gl_obj_list:
+                try:
+                    parts.extend(list(obj))
+                except:
+                    parts.extend(obj)
+
+            # Give each part a new identity (gid, aid, etc) and put nunataks in
+            # boundary polygon as holes.
+
+            for p in parts:
+                new_gid = get_new_gid(p, bounds_by_glac_id)
+                new_aid = get_new_aid()
+
+                write_new_to_glacier_static()
+                del_from_glacier_static(gid)???
+
+                for n in rocks_by_glac_id[gid]:
+                    rocks_to_add = []
+                    if p.contains(n):
+                        rocks_to_add.append(n)
+
+                new_p_geom = Polygon(p.sgeom.exterior, [e.sgeom.exterior for e in rocks_to_add])
+                p.sgeom = new_p_geom
+                bound_objs_to_ingest.append(p)
+
+                for m in misc_entities_by_glac_id[gid]:
+                    if p.contains(m):
+                        m.gid = new_gid
+                        m.aid = new_aid
+
+            # Remove gid entry from bounds_by_glac_id ?
+
         else:
             # Single glac_bound polygon. Find any intrnl_rock polys
             bound_obj = gl_obj_list[0]
@@ -360,6 +398,7 @@ def old_to_new_data_model(query_results, args):
                 # Assemble holey polygon
                 holey_geom = Polygon(bound_obj.sgeom.exterior, [e.sgeom.exterior for e in int_rocks])
                 bound_obj.sgeom = holey_geom
+                bound_objs_to_ingest.append(bound_obj)
 
             # Prepare SQL
             # geom_part will look something like this:
@@ -367,9 +406,17 @@ def old_to_new_data_model(query_results, args):
             # ST_GeomFromEWKT('SRID=4326;POLYGON((-18.225858 79.933083 0,
             #     -18.225269 79.932970 0, -18.225888 79.932975 0, -18.225858 79.933083 0))'));
 
-            geom_part = f"ST_GeomFromEWKT('{bound_obj.as_ewkt_with_srid()}')"
+            for o in bound_objs_to_ingest:
+                geom_part = f"ST_GeomFromEWKT('{o.as_ewkt_with_srid()}')"
+                sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
+                      + f"({o.aid}, '{o.line_type}', {geom_part});"
+                move_sql.append(sql)
+
+        # Add SQL for the miscellaneous entities
+        for gid, m in misc_entities_by_glac_id.items():
+            geom_part = f"ST_GeomFromEWKT('{m.as_ewkt_with_srid()}')"
             sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                  + f"({bound_obj.aid}, '{bound_obj.line_type}', {geom_part});"
+                  + f"({m.aid}, '{m.line_type}', {geom_part});"
             move_sql.append(sql)
 
     return move_sql

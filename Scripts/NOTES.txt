@@ -50,7 +50,6 @@ These can be combined into one:
     for p in parts:
         Give p a new GLIMS glacier ID -> g_id.
         Determine what analysis_id p will have -> a_id.
-        Write new entry in glacier_static for this "new" outline.
 
         for n in intrnl_rock outlines with this group ID:
             If n is contained by p, combine n into p as a "hole".
@@ -58,4 +57,5 @@ These can be combined into one:
         for e in all other entities (with same ID? or whole data set? Latter is slower but safer.):
             If e is contained in p, assign g_id and a_id to e.
 
+        Write new entry in glacier_static for this "new" outline p.
         Write "holey" p, [n, ...], and [e, ...] to the glacier_entities table (with g_id, a_id).
