@@ -17,11 +17,16 @@ import urllib.request
 import json
 
 import psycopg2
+import shapely.geometry as shg
 from shapely.geometry import Polygon
 from shapely.wkt import loads as sloads
 
 from connection import CONN, CONN_V2, SCHEMA
 from db_objs import Glacier_entity
+
+# For handling GLIMS IDs
+sys.path.insert(1, '/projects/GLIMS/GLIMS_Ingest/ID_assignment')
+import GLIMS_ID
 
 
 def print_arg_summary(args):
@@ -256,6 +261,56 @@ def get_new_aid(now_using=None):
         return now_using + 1
 
 
+def get_new_gid(p, bounds_by_glac_id):
+    '''
+    Calculate a new GLIMS glacier ID for this object, making sure it doesn't
+    already exist in the list of glaciers in this run.  Make sure it's also not
+    in the database already by querying the glacierinfo service.
+
+    Input:
+        - a glac_bound record (with outline)
+        - dict of all glac_bound objects, keyed by glacier ID
+
+    Output:
+        the new GLIMS glacier ID
+    '''
+
+    ppoly = shg.shape(p['geometry'])
+    center = ppoly.representative_point()
+    rep_point_id = GLIMS_ID.lonlat2glimsID(center.x, center.y)
+    neighs = GLIMS_ID.neighbors(rep_point_id)
+
+    for id_to_try in [rep_point_id] + neighs:
+        if is_good_new_id(id_to_try, bounds_by_glac_id):
+            return id_to_try
+
+    return None
+
+
+def is_good_new_id(gid, bounds_by_glac_id):
+    '''
+    Check candiate glacier ID for uniqueness: mustn't be in bounds_by_glac_id or in the database
+    '''
+
+    # Check bounds_by_glac_id and fail fast if not unique
+    if gid in bounds_by_glac_id:
+        return False
+
+    # Check db
+    url = f'https://www.glims.org/services/glacierinfo?glac_id={gid}'
+    with urllib.request.urlopen(url) as response:
+        json_return = response.read()
+        rtn_object = json.loads(json_return)
+
+    if 'message' in rtn_object and rtn_object['message'].startswith('No records found'):
+        return True
+    elif 'glacierinfo' in rtn_object:
+        return False
+
+    # Shouldn't get here...
+    return None
+
+
 def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     '''
     process_glacier_entities -- Top-level routine for moving glacier_polygons to glacier_entities
@@ -382,7 +437,12 @@ def old_to_new_data_model(query_results, args):
             # boundary polygon as holes.
 
             for p in parts:
-                #new_gid = get_new_gid(p, bounds_by_glac_id)
+
+                new_gid = get_new_gid(p, bounds_by_glac_id)
+                if new_gid is None:
+                    print("Couldn't create unique ID for new glac_bound poly", file=sys.stderr)
+                    sys.exit(1)
+
                 new_aid = get_new_aid()
 
                 #write_new_to_glacier_static(new_gid, new_aid, p)
