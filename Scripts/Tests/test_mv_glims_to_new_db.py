@@ -241,3 +241,15 @@ def test_old_to_new_data_model():
     '''
     testdata = _make_test_data()
     pass
+
+
+def test_get_new_aid_now_using():
+    got = mv.get_new_aid(42)
+    expect = 43
+    assert(got == expect)
+
+
+def test_get_new_aid_fresh():
+    got = mv.get_new_aid()
+    expect = 1054461
+    assert(got >= expect)

@@ -13,6 +13,8 @@ import decimal
 import argparse
 from collections import OrderedDict
 from collections import defaultdict
+import urllib.request
+import json
 
 import psycopg2
 from shapely.geometry import Polygon
@@ -234,6 +236,26 @@ def issue_sql(sql, dbh_new_cur, args):
         print(sql, file=sys.stdout)
 
 
+def get_new_aid(now_using=None):
+    '''
+    Get next available analysis ID
+    '''
+    if now_using is None:
+        # query service for next aid
+        service_url = 'https://www.glims.org/services/next_ids'
+
+        with urllib.request.urlopen(service_url) as response:
+            json_return = response.read()
+
+            next_ids = json.loads(json_return)
+            next_aid = int(next_ids['analysis_id'])
+
+            return next_aid
+
+    else:
+        return now_using + 1
+
+
 def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     '''
     process_glacier_entities -- Top-level routine for moving glacier_polygons to glacier_entities
@@ -360,11 +382,11 @@ def old_to_new_data_model(query_results, args):
             # boundary polygon as holes.
 
             for p in parts:
-                new_gid = get_new_gid(p, bounds_by_glac_id)
+                #new_gid = get_new_gid(p, bounds_by_glac_id)
                 new_aid = get_new_aid()
 
-                write_new_to_glacier_static()
-                del_from_glacier_static(gid)???
+                #write_new_to_glacier_static(new_gid, new_aid, p)
+                #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
 
                 for n in rocks_by_glac_id[gid]:
                     rocks_to_add = []
