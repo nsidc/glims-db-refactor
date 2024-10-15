@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "This was a starting point but the output has been edited.  Don't start from here anymore."
+exit 1
+
 # Create an SQL file that represents a start at the new schema that will replace the old one.
 
 pg_dump --schema-only --create                      \

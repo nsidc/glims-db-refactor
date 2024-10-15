@@ -514,6 +514,98 @@ CREATE VIEW data.submission_submitter AS
 ALTER TABLE data.submission_submitter OWNER TO postgres;
 
 --
+-- Name: glacier_query_full; Type: VIEW; Schema: data; Owner: braup
+--
+
+CREATE VIEW data.glacier_query_full AS
+ SELECT glacier_entities.entity_geom,
+    glacier_entities.line_type,
+    glacier_dynamic.analysis_id AS anlys_id,
+    glacier_dynamic.glacier_id AS glac_id,
+    glacier_dynamic.analysis_timestamp AS anlys_time,
+    glacier_dynamic.width,
+    glacier_dynamic.length,
+    glacier_dynamic.area,
+    glacier_dynamic.abzone_area AS abzon_area,
+    glacier_dynamic.speed,
+    glacier_dynamic.db_calculated_area AS db_area,
+    glacier_dynamic.primary_classification AS primeclass,
+    glacier_dynamic.primary_classification2 AS primclass2,
+    glacier_dynamic.form,
+    glacier_dynamic.frontal_characteristics AS front_char,
+    glacier_dynamic.frontal_characteristics2 AS front_char2,
+    glacier_dynamic.longitudinal_characteristics AS long_char,
+    glacier_dynamic.dominant_mass_source AS mass_src,
+    glacier_dynamic.tongue_activity AS tong_act,
+    glacier_dynamic.tongue_activity2 AS tong_act2,
+    glacier_dynamic.moraine_code1 AS moraine1,
+    glacier_dynamic.moraine_code2 AS moraine2,
+    glacier_dynamic.debris_cover AS debriscov,
+    glacier_dynamic.min_elev,
+    glacier_dynamic.mean_elev,
+    glacier_dynamic.median_elev AS med_elev,
+    glacier_dynamic.max_elev,
+    glacier_dynamic.snowline_elev AS snwln_elev,
+    glacier_dynamic.ela,
+    glacier_dynamic.ela_desc,
+    glacier_dynamic.three_d_desc AS threeddesc,
+    glacier_dynamic.orientation AS aspect,
+    glacier_dynamic.orientation_ablat AS abl_aspect,
+    glacier_dynamic.orientation_accum AS acc_aspect,
+    glacier_dynamic.avg_slope,
+    glacier_dynamic.thickness_m AS thick_m,
+    glacier_dynamic.basin_code,
+    glacier_dynamic.num_basins,
+    glacier_dynamic.source_timestamp AS src_date,
+    glacier_dynamic.src_time_end AS src_dt_end,
+    glacier_dynamic.rgiid,
+    glacier_dynamic.rgi_glactype AS rgi_gl_typ,
+    glacier_dynamic.rgi_join_count AS rgi_join_n,
+    glacier_dynamic.rgi_maxlength_m AS rgi_max_l,
+    glacier_dynamic.gtng_o1region AS gtng_o1reg,
+    glacier_dynamic.gtng_o2region AS gtng_o2reg,
+    glacier_dynamic.rgiflag,
+    glacier_dynamic.record_status AS rec_status,
+    glacier_dynamic.icesheet_conn_level AS conn_lvl,
+    glacier_dynamic.surge_type,
+    glacier_dynamic.term_type,
+    glacier_static.glacier_name AS glac_name,
+    glacier_static.wgms_id,
+    glacier_static.local_glacier_id AS local_id,
+    glacier_static.glacier_status AS glac_stat,
+    submission_info.submission_id AS subm_id,
+    submission_info.release_okay_date AS release_dt,
+    submission_info.process_description AS proc_desc,
+    submission_submitter.surname AS submit_surn,
+    submission_submitter.givennames AS submit_givn,
+    submission_submitter.affiliation AS submit_affl,
+    submission_submitter.url_primary AS submit_url,
+    submission_submitter.country_code AS submit_ccode,
+    submission_anlst_names.surname AS anlst_surn,
+    submission_anlst_names.givennames AS anlst_givn,
+    submission_anlst_names.affiliation AS anlst_affl,
+    submission_anlst_names.url_primary AS anlst_url,
+    submission_anlst_names.country_code AS anlst_ccode,
+    submission_rc_info.chief_surn,
+    submission_rc_info.chief_givn,
+    submission_rc_info.chief_affl,
+    submission_rc_info.url_primary AS rc_url,
+    submission_rc_info.country_code AS rc_ccode,
+    submission_info.rc_id,
+    submission_rc_info.geog_area
+   FROM glacier_entities,
+    glacier_dynamic,
+    glacier_static,
+    submission_info,
+    submission_submitter,
+    submission_anlst_names,
+    submission_rc_info
+  WHERE glacier_entities.analysis_id = glacier_dynamic.analysis_id AND glacier_dynamic.glacier_id::text = glacier_static.glacier_id::text AND glacier_dynamic.submission_id = submission_info.submission_id AND submission_info.submission_id = submission_submi
+tter.submission_id AND submission_info.submission_id = submission_anlst_names.submission_id AND submission_info.submission_id = submission_rc_info.submission_id AND glacier_dynamic.record_status::text = 'okay'::text;
+
+ALTER TABLE data.glacier_query_full OWNER TO braup;
+
+--
 -- Name: glacier_query_no_people; Type: VIEW; Schema: data; Owner: braup
 --
 
@@ -1881,6 +1973,7 @@ GRANT SELECT ON TABLE data.submission_submitter TO aster_metadata;
 --
 
 GRANT SELECT ON TABLE data.glacier_query_no_people TO glims_ro;
+GRANT SELECT ON TABLE data.glacier_query_full TO glims_ro;
 
 
 --
