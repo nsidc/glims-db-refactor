@@ -8,7 +8,7 @@ and write to the new database.
 
 import os
 import sys
-import datetime
+import datetime as dt
 import decimal
 import argparse
 from collections import OrderedDict
@@ -94,7 +94,7 @@ def get_tables_list(debug=False, from_glacents=False, to_glacents=False):
     '''
 
     if debug:
-        #rtndict = {'image': ()}  # to fix the datetime.datetime issue
+        #rtndict = {'image': ()}  # to fix the dt.datetime issue
         #rtndict = {'glacier_polygons': ()}  # for meat of the data transform
         #rtndict = {'country': ()}  # for case with a geometry column WORKS
         rtndict = {'reference_document': ()}  # for simple scalar case WORKS
@@ -518,7 +518,7 @@ def insert_row_as_simple_copy(T, row):
         I've used QQ as a stand-in for '', do the interpolation, then replace the QQ with '' after.  Ugh.
     '''
 
-    row_fixed = [e.isoformat() if type(e) in (datetime.date, datetime.time, datetime.datetime) else e for e in row]
+    row_fixed = [e.isoformat() if type(e) in (dt.date, dt.time, dt.datetime) else e for e in row]
     row_fixed = [int(e) if type(e) is decimal.Decimal else e for e in row_fixed]
     row_fixed = [fix_quotes(e) for e in row_fixed]
     row_fixed = tuple(['NULL' if e is None else e for e in row_fixed])
@@ -641,7 +641,7 @@ def main():
     # Parse command-line.
     args = p.parse_args()
 
-    today_string = datetime.date.today().isoformat()
+    today_string = dt.date.today().isoformat()
 
     # Get environment
     user = os.environ['USER']
