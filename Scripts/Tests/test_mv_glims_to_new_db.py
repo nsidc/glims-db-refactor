@@ -81,6 +81,18 @@ def _make_fiona_glac_bound_object():
     return obj
 
 
+def _make_Glacier_entity_object():
+
+    gid = 'G123456E12345N'
+    aid = 42
+    line_type = 'glac_bound'
+    geom = 'SRID=4326;POLYGON ((0 0, 0 2, 2 2, 2 0, 0 0))'
+
+    sim_row = (gid, aid, line_type, geom)
+    gl_obj = Glacier_entity(sim_row)
+    return gl_obj
+
+
 def test_fix_quotes():
     teststring = '"This is X"avier\'s book"'
     expect = 'This is X\"avierQQs book'
@@ -271,7 +283,7 @@ def test_get_new_aid_fresh():
 
 
 def test_get_new_gid_new():
-    glac_bound_obj = _make_fiona_glac_bound_object()
+    glac_bound_obj = _make_Glacier_entity_object()
     fake_existing_polys = {'G123456E12345N': 'unused value', 'G123456E12345S': 'unused value 2'}
     new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys)
     print('new_gid = ', new_gid)
@@ -279,7 +291,7 @@ def test_get_new_gid_new():
 
 
 def test_get_new_gid_dupe_in_dict():
-    glac_bound_obj = _make_fiona_glac_bound_object()
+    glac_bound_obj = _make_Glacier_entity_object()
     fake_existing_polys = {'G001000E01000N': 'unused value', 'G123456E12345S': 'unused value 2'}
     neighbors = ['G000999E00999N', 'G001000E00999N', 'G001001E00999N', 'G000999E01000N', 'G001001E01000N', 'G000999E01001N', 'G001000E01001N', 'G001001E01001N']
 
