@@ -275,7 +275,7 @@ def get_new_gid(p, bounds_by_glac_id):
         the new GLIMS glacier ID
     '''
 
-    ppoly = shg.shape(p['geometry'])
+    ppoly = shg.shape(p.sgeom)
     center = ppoly.representative_point()
     rep_point_id = GLIMS_ID.lonlat2glimsID(center.x, center.y)
     neighs = GLIMS_ID.neighbors(rep_point_id)
@@ -431,7 +431,7 @@ def old_to_new_data_model(query_results, args):
                 try:
                     parts.extend(list(obj))
                 except:
-                    parts.extend(obj)
+                    parts.append(obj)
 
             # Give each part a new identity (gid, aid, etc) and put nunataks in
             # boundary polygon as holes.
@@ -495,11 +495,19 @@ def old_to_new_data_model(query_results, args):
                 move_sql.append(sql)
 
         # Add SQL for the miscellaneous entities
-        for gid, m in misc_entities_by_glac_id.items():
-            geom_part = f"ST_GeomFromEWKT('{m.as_ewkt_with_srid()}')"
-            sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                  + f"({m.aid}, '{m.line_type}', {geom_part});"
-            move_sql.append(sql)
+        for gid, obj_list in misc_entities_by_glac_id.items():
+            if not obj_list:
+                continue
+
+            for gl_obj in obj_list:
+
+                gid = gl_obj.gid
+                print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
+                coords = gl_obj.as_ewkt_with_srid()
+                geom_part = f"ST_GeomFromEWKT('{coords}')"
+                sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
+                      + f"({m.aid}, '{m.line_type}', {geom_part});"
+                move_sql.append(sql)
 
     return move_sql
 
