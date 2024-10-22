@@ -1,0 +1,31 @@
+     82 data.reference_document
+      4 data.dominant_mass_source_valids
+     10 data.form_valids
+     13 data.frontal_characteristics_valids
+      6 data.lon_char_valids
+     11 data.primary_classification_valids
+     10 data.tongue_activity_valids
+    407 data.glims_table_fields
+     21 data.gtng_order1regions
+     93 data.gtng_order2regions
+    393 data.glims_field_dictionary
+     75 data.instrument
+    251 data.country
+      6 data.status_def
+    558 data.map_metadata
+   5279 data.image
+    369 data.people
+    127 data.regional_centers
+    387 data.rc_people
+    835 data.submission_info
+   3363 data.submission_analyst
+ 434241 data.glacier_static
+  76638 data.glacier_reference
+1075399 data.glacier_dynamic
+61775879 data.glacier_image_info
+ 179073 data.area_histogram
+22501329 data.area_histogram_data
+      6 data.glacier_entities
+ 425573 data.glacier_countries
+ 541026 data.glacier_map_info
+      1 

@@ -59,3 +59,9 @@ These can be combined into one:
 
         Write new entry in glacier_static for this "new" outline p.
         Write "holey" p, [n, ...], and [e, ...] to the glacier_entities table (with g_id, a_id).
+
+
+2024-10-22
+
+The counts of INSERT statements and rows in the old DB match, except for the
+new glacier_entities table, which hasn't been fully populated yet.
