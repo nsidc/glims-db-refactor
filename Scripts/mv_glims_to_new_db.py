@@ -217,6 +217,8 @@ def connect_to_db():
         print(f"Unable to connect to the new database: {e}", file=sys.stderr)
         sys.exit(1)
 
+    db_new.set_session(autocommit=True)
+
     dbh_new_cur  = db_new.cursor()
 
     return (dbh_old_cur, dbh_new_cur)
