@@ -629,7 +629,7 @@ def do_db_move(args):
                 issue_sql(insert_row_as_simple_copy(T, row), dbh_new_cur, args)
 
     # psycopg2 uses transactions by default, which must be commited
-    issue_sql('COMMIT;', dbh_new_cur, args)
+    #issue_sql('COMMIT;', dbh_new_cur, args)
 
 
 def main():
