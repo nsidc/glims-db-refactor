@@ -65,3 +65,13 @@ These can be combined into one:
 
 The counts of INSERT statements and rows in the old DB match, except for the
 new glacier_entities table, which hasn't been fully populated yet.
+
+
+2024-10-31
+
+Where are the uncertainty values in the new schema?  They are in the segments
+table in the old, and should therefore be in the glacier_entities table in the
+new.
+
+Also, for the download service to work, I need to remove all reference to
+segments, lines, etc.
