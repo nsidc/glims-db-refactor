@@ -37,7 +37,7 @@ def print_arg_summary(args):
 
 def setup_argument_parser():
     """Set up command line options.  -h or --help for help is automatic"""
-    b_help = 'Bounding box to define region for move. Format: --bbox=W,E,S,N'
+    b_help = 'Bounding box to define region for move. Format: --bbox=W,S,E,N'
     G_help = 'Copy all tables from "glacier_entities" on. Previous tables should be in the new DB already.'
     T_help = 'Copy all tables up to, but not including, "glacier_entities".'
 
@@ -345,7 +345,7 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     if args.bbox == 'all':
         sql = base_query
     else:
-        W, E, S, N = args.bbox.split(',')
+        W, S, E, N = args.bbox.split(',')
         region = f"ST_GeomFromEWKT('SRID=4326;POLYGON(({W} {S}, {E} {S}, {E} {N}, {W} {N}, {W} {S}))')"
         sql = base_query + f' AND {region} && {T}.glacier_polys'
 
