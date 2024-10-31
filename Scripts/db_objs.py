@@ -28,3 +28,6 @@ class Glacier_entity(object):
     def contains(self, o):
         ''' input:  another Glacier_entity object '''
         return self.sgeom.contains(o.sgeom)
+
+    def __repr__(self):
+        return f"({self.gid}, {self.aid}, {self.line_type})"
