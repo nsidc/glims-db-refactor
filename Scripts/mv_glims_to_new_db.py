@@ -277,16 +277,29 @@ def get_new_gid(p, bounds_by_glac_id):
         the new GLIMS glacier ID
     '''
 
-    ppoly = shg.shape(p.sgeom)
-    center = ppoly.representative_point()
+    #print("DEBUG: get_new_gid: input p is ", p, file=sys.stderr)
+
+    try:
+        ppoly = shg.shape(p.sgeom).buffer(0.0)  # buffer fixes some topology problems
+        center = ppoly.representative_point()
+    except:
+        #print("DEBUG: get_new_gid: shape or representative_point failed", file=sys.stderr)
+        return None
+
+    #print("DEBUG: get_new_gid: center = ", center, "type is ", type(center), file=sys.stderr)
+
+    if center.is_empty:
+        return None
+
     rep_point_id = GLIMS_ID.lonlat2glimsID(center.x, center.y)
     neighs = GLIMS_ID.neighbors(rep_point_id)
 
     for id_to_try in [rep_point_id] + neighs:
         if is_good_new_id(id_to_try, bounds_by_glac_id):
+            #print("   --> get_new_gid: returning ", id_to_try, file=sys.stderr)
             return id_to_try
 
-    return None
+    return 'no_candidates'
 
 
 def is_good_new_id(gid, bounds_by_glac_id):
@@ -442,7 +455,10 @@ def old_to_new_data_model(query_results, args):
 
                 new_gid = get_new_gid(p, bounds_by_glac_id)
                 if new_gid is None:
-                    print("Couldn't create unique ID for new glac_bound poly", file=sys.stderr)
+                    print(f"Topology seems wrong for glac_bound poly: {p}. Skipping.", file=sys.stderr)
+                    continue
+                if new_gid == 'no_candidates':
+                    print(f"No candidate IDs were found for glac_bound poly: {p}. Exiting.", file=sys.stderr)
                     sys.exit(1)
 
                 new_aid = get_new_aid()
@@ -450,8 +466,8 @@ def old_to_new_data_model(query_results, args):
                 #write_new_to_glacier_static(new_gid, new_aid, p)
                 #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
 
+                rocks_to_add = []
                 for n in rocks_by_glac_id[gid]:
-                    rocks_to_add = []
                     if p.contains(n):
                         rocks_to_add.append(n)
 
@@ -460,9 +476,12 @@ def old_to_new_data_model(query_results, args):
                 bound_objs_to_ingest.append(p)
 
                 for m in misc_entities_by_glac_id[gid]:
-                    if p.contains(m):
-                        m.gid = new_gid
-                        m.aid = new_aid
+                    try:
+                        if p.contains(m):
+                            m.gid = new_gid
+                            m.aid = new_aid
+                    except:
+                        pass
 
             # Remove gid entry from bounds_by_glac_id ?
 
@@ -504,11 +523,11 @@ def old_to_new_data_model(query_results, args):
             for gl_obj in obj_list:
 
                 gid = gl_obj.gid
-                print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
+                #print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
                 coords = gl_obj.as_ewkt_with_srid()
                 geom_part = f"ST_GeomFromEWKT('{coords}')"
                 sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                      + f"({m.aid}, '{m.line_type}', {geom_part});"
+                      + f"({gl_obj.aid}, '{gl_obj.line_type}', {geom_part});"
                 move_sql.append(sql)
 
     return move_sql
