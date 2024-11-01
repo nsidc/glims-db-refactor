@@ -75,3 +75,7 @@ new.
 
 Also, for the download service to work, I need to remove all reference to
 segments, lines, etc.
+
+There are currently polygon, line, and point queries, the results of which end
+up in different shapefiles.  So, I need to define new views for these that
+include something like "WHERE glacier_entities.line_type=<geomtype>".
