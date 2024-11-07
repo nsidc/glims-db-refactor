@@ -1,0 +1,82 @@
+BEGIN;
+
+DROP VIEW glacier_query_no_people;
+
+CREATE VIEW glacier_query_no_people AS
+ SELECT glacier_entities.entity_geom,
+    glacier_entities.line_type,
+    glacier_dynamic.abzone_area AS abzon_area,
+    glacier_dynamic.analysis_id AS anlys_id,
+    glacier_dynamic.analysis_timestamp AS anlys_time,
+    glacier_dynamic.area,
+    glacier_dynamic.avg_slope,
+    glacier_dynamic.basin_code,
+    glacier_dynamic.db_calculated_area AS db_area,
+    glacier_dynamic.debris_cover AS debriscov,
+    glacier_dynamic.dominant_mass_source AS mass_src,
+    glacier_dynamic.ela,
+    glacier_dynamic.ela_desc,
+    glacier_dynamic.form,
+    glacier_dynamic.frontal_characteristics AS front_char,
+    glacier_dynamic.frontal_characteristics2 AS front_char2,
+    glacier_dynamic.glacier_id AS glac_id,
+    glacier_dynamic.gtng_o1region AS gtng_o1reg,
+    glacier_dynamic.gtng_o2region AS gtng_o2reg,
+    glacier_dynamic.icesheet_conn_level AS conn_lvl,
+    glacier_dynamic.length,
+    glacier_dynamic.longitudinal_characteristics AS long_char,
+    glacier_dynamic.max_elev,
+    glacier_dynamic.mean_elev,
+    glacier_dynamic.median_elev AS med_elev,
+    glacier_dynamic.min_elev,
+    glacier_dynamic.moraine_code1 AS moraine1,
+    glacier_dynamic.moraine_code2 AS moraine2,
+    glacier_dynamic.num_basins,
+    glacier_dynamic.orientation AS aspect,
+    glacier_dynamic.orientation_ablat AS abl_aspect,
+    glacier_dynamic.orientation_accum AS acc_aspect,
+    glacier_dynamic.primary_classification AS primeclass,
+    glacier_dynamic.primary_classification2 AS primclass2,
+    glacier_dynamic.record_status AS rec_status,
+    glacier_dynamic.rgi_glactype AS rgi_gl_typ,
+    glacier_dynamic.rgi_join_count AS rgi_join_n,
+    glacier_dynamic.rgi_maxlength_m AS rgi_max_l,
+    glacier_dynamic.rgiflag,
+    glacier_dynamic.rgiid,
+    glacier_dynamic.snowline_elev AS snwln_elev,
+    glacier_dynamic.source_timestamp AS src_date,
+    glacier_dynamic.speed,
+    glacier_dynamic.src_time_end AS src_dt_end,
+    glacier_dynamic.surge_type,
+    glacier_dynamic.term_type,
+    glacier_dynamic.thickness_m AS thick_m,
+    glacier_dynamic.three_d_desc AS threeddesc,
+    glacier_dynamic.tongue_activity AS tong_act,
+    glacier_dynamic.tongue_activity2 AS tong_act2,
+    glacier_dynamic.width,
+    glacier_static.est_disappear_date AS gone_date,
+    glacier_static.est_disappear_unc AS gone_dt_e,
+    glacier_static.glacier_name AS glac_name,
+    glacier_static.glacier_status AS glac_stat,
+    glacier_static.local_glacier_id AS local_id,
+    glacier_static.wgms_id,
+    submission_info.submission_id AS subm_id,
+    submission_info.release_okay_date AS release_dt,
+    submission_info.process_description AS proc_desc,
+    submission_info.rc_id,
+    submission_rc_info.geog_area,
+    submission_rc_info.chief_affl,
+    glacier_static.parent_icemass_id AS parent_id
+   FROM glacier_entities,
+    glacier_dynamic,
+    glacier_static,
+    submission_info,
+    submission_rc_info
+  WHERE glacier_entities.analysis_id = glacier_dynamic.analysis_id AND
+glacier_dynamic.glacier_id::text = glacier_static.glacier_id::text AND
+glacier_dynamic.submission_id = submission_info.submission_id AND
+submission_info.submission_id = submission_rc_info.submission_id AND
+glacier_dynamic.record_status::text = 'okay'::text;
+
+GRANT SELECT ON glacier_query_no_people TO glims_ro;
+GRANT SELECT ON glacier_query_no_people TO glims_rw;
