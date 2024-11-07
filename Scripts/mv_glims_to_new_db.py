@@ -350,6 +350,11 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
         sql = base_query + f' AND {region} && {T}.glacier_polys'
 
     dbh_old_cur.execute(sql)
+
+    # Change this to fetchmany, in a while True loop?  No, since all results
+    # are required to guarantee that all intrnl_rock parts are processed
+    # properly.
+
     query_results = dbh_old_cur.fetchall()      # list of tuples
 
     if not args.quiet:
