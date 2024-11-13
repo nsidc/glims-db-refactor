@@ -280,7 +280,7 @@ def get_new_gid(p, bounds_by_glac_id):
     #print("DEBUG: get_new_gid: input p is ", p, file=sys.stderr)
 
     try:
-        ppoly = shg.shape(p.sgeom).buffer(0.0)  # buffer fixes some topology problems
+        ppoly = shg.polygon.orient(shg.shape(p.sgeom))
         center = ppoly.representative_point()
     except:
         #print("DEBUG: get_new_gid: shape or representative_point failed", file=sys.stderr)
@@ -360,7 +360,10 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     if not args.quiet:
         print(f"Selected {len(query_results)} records from table {T}", file=sys.stderr)
 
-    move_sql = old_to_new_data_model(query_results, args)
+    (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, args.quiet)
+
+    move_sql = glac_objs_to_sql_inserts(glac_bound_objs)
+    move_sql.extend(glac_objs_to_sql_inserts(misc_glac_objs))
 
     if not args.quiet:
         print(f"Issuing {len(move_sql)} SQL statements...", file=sys.stderr)
@@ -369,11 +372,11 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
         issue_sql(m, dbh_new_cur, args)
 
 
-def old_to_new_data_model(query_results, args):
+def old_to_new_data_model(query_results, quiet=True):
     ''' old_to_new_data_model - translate all query results from old to new data model
 
-    Input:  query_results, a list of tuples
-    Output: SQL on stdout, or execute it on new DB
+    Input:  query_results, a list of tuples from the glacier_polygons table
+    Output: two lists of objects: glacier objects and misc. objects
 
     For reference, as of 2024-05-20, here are the line types in the glacier_polygons table:
 
@@ -406,18 +409,14 @@ def old_to_new_data_model(query_results, args):
                 - If none found, check all records.
 
         2) need to be combined so that intrnl_rock polygons become "holes" in the associated glac_bound polygon;
-
-        This routine is detached from data source to enable application to test data.
     '''
 
     bounds_by_glac_id = defaultdict(list)
     rocks_by_glac_id = defaultdict(list)
     orphan_rocks_by_glac_id = defaultdict(list)
     misc_entities_by_glac_id = defaultdict(list)
-    #new_glac_rec_by_glac_id = defaultdict(list)
-    move_sql = []  # List of SQL statements to insert into the new DB
 
-    # Bin the results by entity type
+    # Bin the query results by entity type
 
     for row in query_results:
         gl_obj = Glacier_entity(row)
@@ -428,10 +427,10 @@ def old_to_new_data_model(query_results, args):
         elif gl_obj.line_type == 'intrnl_rock':
             rocks_by_glac_id[gl_obj.gid].append(gl_obj)
         else:
-            print("Warning: found unknown line_type: ", line_type, file=sys.stderr)
+            print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
-    # Now assemble glac_bound polys with holes
-    if not args.quiet:
+    # Assemble glac_bound polys with holes
+    if not quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
@@ -476,8 +475,8 @@ def old_to_new_data_model(query_results, args):
                     if p.contains(n):
                         rocks_to_add.append(n)
 
-                new_p_geom = Polygon(p.sgeom.exterior, [e.sgeom.exterior for e in rocks_to_add])
-                p.sgeom = new_p_geom
+                new_p_geom = Polygon(p.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
+                p.sgeom = shg.polygon.orient(new_p_geom)
                 bound_objs_to_ingest.append(p)
 
                 for m in misc_entities_by_glac_id[gid]:
@@ -494,7 +493,7 @@ def old_to_new_data_model(query_results, args):
             # Single glac_bound polygon. Find any intrnl_rock polys
             bound_obj = gl_obj_list[0]
             if gid in rocks_by_glac_id:
-                rock_objs = rocks_by_glac_id[gid]  # list of "row" tuples
+                rock_objs = rocks_by_glac_id[gid]
                 # Check for containment...
                 int_rocks = []
                 for r in rock_objs:
@@ -504,9 +503,19 @@ def old_to_new_data_model(query_results, args):
                         int_rocks.append(r)
 
                 # Assemble holey polygon
-                holey_geom = Polygon(bound_obj.sgeom.exterior, [e.sgeom.exterior for e in int_rocks])
+                holey_geom = Polygon(bound_obj.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in int_rocks])
                 bound_obj.sgeom = holey_geom
                 bound_objs_to_ingest.append(bound_obj)
+
+    return (bound_objs_to_ingest, misc_entities_by_glac_id)
+
+
+def glac_objs_to_sql_inserts(obj_list):
+    ''' glac_objs_to_sql_inserts -- create SQL INSERT statements for a list of glacier_entity
+        objects
+
+        Input:  list of Glacier_entity objects
+        Output: List of INSERT statements
 
             # Prepare SQL
             # geom_part will look something like this:
@@ -514,26 +523,17 @@ def old_to_new_data_model(query_results, args):
             # ST_GeomFromEWKT('SRID=4326;POLYGON((-18.225858 79.933083 0,
             #     -18.225269 79.932970 0, -18.225888 79.932975 0, -18.225858 79.933083 0))'));
 
-            for o in bound_objs_to_ingest:
-                geom_part = f"ST_GeomFromEWKT('{o.as_ewkt_with_srid()}')"
-                sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                      + f"({o.aid}, '{o.line_type}', {geom_part});"
-                move_sql.append(sql)
+    '''
+    move_sql = []
+    for gl_obj in obj_list:
 
-        # Add SQL for the miscellaneous entities
-        for gid, obj_list in misc_entities_by_glac_id.items():
-            if not obj_list:
-                continue
-
-            for gl_obj in obj_list:
-
-                gid = gl_obj.gid
-                #print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
-                coords = gl_obj.as_ewkt_with_srid()
-                geom_part = f"ST_GeomFromEWKT('{coords}')"
-                sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
-                      + f"({gl_obj.aid}, '{gl_obj.line_type}', {geom_part});"
-                move_sql.append(sql)
+        gid = gl_obj.gid
+        #print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
+        coords = gl_obj.as_ewkt_with_srid()
+        geom_part = f"ST_GeomFromEWKT('{coords}')"
+        sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \
+              + f"({gl_obj.aid}, '{gl_obj.line_type}', {geom_part});"
+        move_sql.append(sql)
 
     return move_sql
 

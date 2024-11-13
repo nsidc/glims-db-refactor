@@ -2,7 +2,7 @@ import sys
 
 import shapely
 from shapely.geometry import Polygon
-from shapely.wkt import loads as sloads
+#from shapely.wkt import loads as sloads
 import psycopg2
 
 import mv_glims_to_new_db as mv
@@ -60,7 +60,7 @@ Y
         ('G3', 3, 'intrnl_rock', 'SRID=4326;POLYGON ((4.8 4, 4.8 4.8, 5.2 4.8, 5.2 4, 4.8 4))'),
 
         ('G1', 1, 'pro_lake',    'SRID=4326;POLYGON ((0 2, 0 3, 1 3, 1 2, 0 2))'),
-        ('B1', 1, 'basin__bound','SRID=4326;POLYGON ((0 0, 0 6, 9 6, 9 0, 0 0))'),
+        ('B1', 1, 'basin_bound', 'SRID=4326;POLYGON ((-1 -1, -1 7, 10 7, 10 -1, -1 -1))'),
     ]
 
     return entity_list
@@ -228,7 +228,7 @@ def test_testdata_6():
     g1_area = g1.sgeom.area
     g1a_area = g1a.sgeom.area
 
-    holey = Polygon(g1.sgeom.exterior, [g1a.sgeom.exterior])
+    holey = Polygon(g1.sgeom.exterior, holes=[g1a.sgeom.exterior])
     combined_area = holey.area
 
     print("g1_area: ", g1_area, "; g1a_area = ", g1a_area, ";  combined_area = ", combined_area)
@@ -253,8 +253,11 @@ def test_testdata_multiple_holes():
     combined_area = holey.area
 
     print("outer_area: ", outer_area, "; inners = ", inners, ";  combined_area = ", combined_area)
+    print("holey: ", holey)
 
-    assert(outer_area == 54.0 and combined_area == 42.0)
+    print("After buffer:  holey: ", holey.buffer(0.0))
+
+    assert(outer_area == 88.0 and combined_area == 76.0)
 
 
 def test_connect_to_db():
@@ -267,7 +270,11 @@ def test_old_to_new_data_model():
     Test full representation of test data in new data model
     '''
     testdata = _make_test_data()
-    pass
+    (glac_objs, misc_objs) = mv.old_to_new_data_model(testdata)
+    print("test_old_to_new_data_model: Input data:\n", testdata)
+    print("glac_objs:\n", glac_objs)
+    print("misc_objs:\n", misc_objs)
+    assert(len(glac_objs) == 4 and len(misc_objs) == 2)
 
 
 def test_get_new_aid_now_using():
