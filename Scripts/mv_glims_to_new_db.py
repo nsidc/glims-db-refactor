@@ -420,6 +420,7 @@ def old_to_new_data_model(query_results, quiet=True):
 
     for row in query_results:
         gl_obj = Glacier_entity(row)
+        print(f"Found a {gl_obj.line_type} object", file=sys.stderr)
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
             misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
@@ -429,13 +430,21 @@ def old_to_new_data_model(query_results, quiet=True):
         else:
             print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
+    print("After binning: misc_entities_by_glac_id:\n", misc_entities_by_glac_id, file=sys.stderr)
+    print("After binning:bounds_by_glac_id:\n", bounds_by_glac_id, file=sys.stderr)
+    print("After binning:rocks_by_glac_id:\n", rocks_by_glac_id, file=sys.stderr)
+
     # Assemble glac_bound polys with holes
     if not quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
+    print('DEBUG: Looping through glac_bound objects', file=sys.stderr)
+
+    bound_objs_to_ingest = []  # single item or list from multi-polygons
+
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
-        bound_objs_to_ingest = []  # single item or list from multi-polygons
+        print("In glac_bound loop.  gl_obj_list:", gl_obj_list, file=sys.stderr)
 
         if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type == 'MultiPolygon':
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
@@ -454,6 +463,8 @@ def old_to_new_data_model(query_results, quiet=True):
 
             # Give each part a new identity (gid, aid, etc) and put nunataks in
             # boundary polygon as holes.
+
+            print("parts now is:", parts, file=sys.stderr)
 
             for p in parts:
 
@@ -506,6 +517,9 @@ def old_to_new_data_model(query_results, quiet=True):
                 holey_geom = Polygon(bound_obj.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in int_rocks])
                 bound_obj.sgeom = holey_geom
                 bound_objs_to_ingest.append(bound_obj)
+
+    print("old_to_new_data_model: returning (bound_objs_to_ingest, misc_entities_by_glac_id):", file=sys.stderr)
+    print(bound_objs_to_ingest, "\n\n", misc_entities_by_glac_id, file=sys.stderr)
 
     return (bound_objs_to_ingest, misc_entities_by_glac_id)
 
