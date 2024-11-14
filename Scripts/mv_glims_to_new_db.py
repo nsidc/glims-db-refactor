@@ -502,7 +502,7 @@ def old_to_new_data_model(query_results, quiet=True):
                 print("Adjusting IDs of misc entities", file=sys.stderr)
                 for m in misc_entities_by_glac_id[gid]:
                     print("  Testing ", m, file=sys.stderr)
-                    if p.touches(m) :
+                    if p.touches(m) or p.contains(m):
                         print(f"{m.gid}->{new_gid}", file=sys.stderr)
                         print(f"{m.aid}->{new_aid}", file=sys.stderr)
                         m.gid = new_gid
