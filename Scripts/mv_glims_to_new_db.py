@@ -469,6 +469,8 @@ def old_to_new_data_model(query_results, quiet=True):
             for p in parts:
 
                 new_gid = get_new_gid(p, bounds_by_glac_id)
+                print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
+
                 if new_gid is None:
                     print(f"Topology seems wrong for glac_bound poly: {p}. Skipping.", file=sys.stderr)
                     continue
@@ -477,9 +479,13 @@ def old_to_new_data_model(query_results, quiet=True):
                     sys.exit(1)
 
                 new_aid = get_new_aid()
+                print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
                 #write_new_to_glacier_static(new_gid, new_aid, p)
                 #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
+
+                p.gid = new_gid
+                p.aid = new_aid
 
                 rocks_to_add = []
                 for n in rocks_by_glac_id[gid]:
@@ -488,15 +494,19 @@ def old_to_new_data_model(query_results, quiet=True):
 
                 new_p_geom = Polygon(p.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
                 p.sgeom = shg.polygon.orient(new_p_geom)
+
+                print("In parts loop: appending ", p, file=sys.stderr)
                 bound_objs_to_ingest.append(p)
 
+                # Adjust IDs of misc entities contained by changed glac_bound entities
+                print("Adjusting IDs of misc entities", file=sys.stderr)
                 for m in misc_entities_by_glac_id[gid]:
-                    try:
-                        if p.contains(m):
-                            m.gid = new_gid
-                            m.aid = new_aid
-                    except:
-                        pass
+                    print("  Testing ", m, file=sys.stderr)
+                    if p.touches(m) :
+                        print(f"{m.gid}->{new_gid}", file=sys.stderr)
+                        print(f"{m.aid}->{new_aid}", file=sys.stderr)
+                        m.gid = new_gid
+                        m.aid = new_aid
 
             # Remove gid entry from bounds_by_glac_id ?
 
@@ -518,8 +528,12 @@ def old_to_new_data_model(query_results, quiet=True):
                 bound_obj.sgeom = holey_geom
                 bound_objs_to_ingest.append(bound_obj)
 
-    print("old_to_new_data_model: returning (bound_objs_to_ingest, misc_entities_by_glac_id):", file=sys.stderr)
-    print(bound_objs_to_ingest, "\n\n", misc_entities_by_glac_id, file=sys.stderr)
+    print("old_to_new_data_model: returning bound_objs_to_ingest:", file=sys.stderr)
+    print(bound_objs_to_ingest, file=sys.stderr)
+    print([e.as_ewkt_with_srid() for e in bound_objs_to_ingest], file=sys.stderr)
+
+    print("old_to_new_data_model: returning misc_entities_by_glac_id:", file=sys.stderr)
+    print(misc_entities_by_glac_id, file=sys.stderr)
 
     return (bound_objs_to_ingest, misc_entities_by_glac_id)
 

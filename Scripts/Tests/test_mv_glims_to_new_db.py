@@ -27,9 +27,9 @@ Y
 
 3           --------------
             | G3         |
-4           |            |      -------
-            |            |      | 3a? |
-            |            |      -------
+4           |   ------   |      -------
+            |   |lake|   |      | 3a? |
+            |   ------   |      -------
 5           --------------
 
     - Glacier "G1" has two glac_bound polygons that must be given separate
@@ -44,6 +44,13 @@ Y
 
         - Warn about it but convert it to glac_bound polygon and assign it
           a new GLIMS glacier ID?
+
+Combined geoms should look something like this:
+
+'SRID=4326;POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0), (0.8 1, 0.8 1.8, 1.2 1.8, 1.2 1, 0.8 1))',
+'SRID=4326;POLYGON ((3 0, 5 0, 5 2, 3 2, 3 0), (3.8 1, 3.8 1.8, 4.2 1.8, 4.2 1, 3.8 1))',
+'SRID=4326;POLYGON ((7 0, 7 2, 9 2, 9 0, 7 0), (7.8 1, 7.8 1.8, 8.199999999999999 1.8, 8.199999999999999 1, 7.8 1))',
+'SRID=4326;POLYGON ((1 3, 1 5, 3 5, 3 3, 1 3))']
 
     '''
     entity_list = [
@@ -61,6 +68,9 @@ Y
 
         ('G1', 1, 'pro_lake',    'SRID=4326;POLYGON ((0 2, 0 3, 1 3, 1 2, 0 2))'),
         ('B1', 1, 'basin_bound', 'SRID=4326;POLYGON ((-1 -1, -1 7, 10 7, 10 -1, -1 -1))'),
+
+        ('G3', 3, 'supra_lake',  'SRID=4326;POLYGON ((1.5 4, 2.5 4, 2.5 4.5, 1.5 4.5, 1.5 4))'),
+        ('G1', 1, 'supra_lake',  'SRID=4326;POLYGON ((3.8 1, 3.8 1.8, 4.2 1.8, 4.2 1, 3.8 1))'),
     ]
 
     return entity_list
@@ -192,9 +202,9 @@ def test_testdata_3():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1 = Glacier_entity(testdata[4])
-    g1a = Glacier_entity(testdata[5])
-    assert(g1.contains(g1a))
+    g2 = Glacier_entity(testdata[4])
+    g2a = Glacier_entity(testdata[5])
+    assert(g2.contains(g2a))
 
 
 def test_testdata_4():
@@ -202,9 +212,9 @@ def test_testdata_4():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1 = Glacier_entity(testdata[6])
-    g1a = Glacier_entity(testdata[7])
-    assert(not g1.contains(g1a))
+    g3 = Glacier_entity(testdata[6])
+    g3a = Glacier_entity(testdata[7])
+    assert(not g3.contains(g3a))
 
 
 def test_testdata_5():
@@ -212,9 +222,19 @@ def test_testdata_5():
     Test that the coordinates lead to the expected overlaps
     '''
     testdata = _make_test_data()
-    g1 = Glacier_entity(testdata[9])
-    g1a = Glacier_entity(testdata[6])
-    assert(g1.contains(g1a))
+    bbound = Glacier_entity(testdata[9])
+    g3 = Glacier_entity(testdata[6])
+    assert(bbound.contains(g3))
+
+
+def test_testdata_5a():
+    '''
+    Test that the coordinates lead to the expected overlaps
+    '''
+    testdata = _make_test_data()
+    g3 = Glacier_entity(testdata[6])
+    g3_lake = Glacier_entity(testdata[10])
+    assert(g3.contains(g3_lake))
 
 
 def test_testdata_6():
@@ -274,7 +294,7 @@ def test_old_to_new_data_model():
     print("test_old_to_new_data_model: Input data:\n", testdata)
     print("glac_objs:\n", glac_objs)
     print("misc_objs:\n", misc_objs)
-    assert(len(glac_objs) == 4 and len(misc_objs) == 2)
+    assert(len(glac_objs) == 4 and len(misc_objs) == 3)
 
 
 def test_get_new_aid_now_using():

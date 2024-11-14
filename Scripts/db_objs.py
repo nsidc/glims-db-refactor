@@ -29,5 +29,9 @@ class Glacier_entity(object):
         ''' input:  another Glacier_entity object '''
         return self.sgeom.contains(o.sgeom)
 
+    def touches(self, o):
+        ''' input:  another Glacier_entity object '''
+        return self.sgeom.touches(o.sgeom)
+
     def __repr__(self):
         return f"({self.gid}, {self.aid}, {self.line_type})"
