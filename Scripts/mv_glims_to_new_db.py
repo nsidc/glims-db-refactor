@@ -420,7 +420,7 @@ def old_to_new_data_model(query_results, quiet=True):
 
     for row in query_results:
         gl_obj = Glacier_entity(row)
-        print(f"Found a {gl_obj.line_type} object", file=sys.stderr)
+        #print(f"Found a {gl_obj.line_type} object", file=sys.stderr)
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
             misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
@@ -430,21 +430,19 @@ def old_to_new_data_model(query_results, quiet=True):
         else:
             print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
-    print("After binning: misc_entities_by_glac_id:\n", misc_entities_by_glac_id, file=sys.stderr)
-    print("After binning:bounds_by_glac_id:\n", bounds_by_glac_id, file=sys.stderr)
-    print("After binning:rocks_by_glac_id:\n", rocks_by_glac_id, file=sys.stderr)
+    #print("After binning: misc_entities_by_glac_id:\n", misc_entities_by_glac_id, file=sys.stderr)
+    #print("After binning:bounds_by_glac_id:\n", bounds_by_glac_id, file=sys.stderr)
+    #print("After binning:rocks_by_glac_id:\n", rocks_by_glac_id, file=sys.stderr)
 
     # Assemble glac_bound polys with holes
     if not quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
-    print('DEBUG: Looping through glac_bound objects', file=sys.stderr)
-
     bound_objs_to_ingest = []  # single item or list from multi-polygons
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
 
-        print("In glac_bound loop.  gl_obj_list:", gl_obj_list, file=sys.stderr)
+        #print("In glac_bound loop.  gl_obj_list:", gl_obj_list, file=sys.stderr)
 
         if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type == 'MultiPolygon':
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
@@ -464,12 +462,12 @@ def old_to_new_data_model(query_results, quiet=True):
             # Give each part a new identity (gid, aid, etc) and put nunataks in
             # boundary polygon as holes.
 
-            print("parts now is:", parts, file=sys.stderr)
+            #print("parts now is:", parts, file=sys.stderr)
 
             for p in parts:
 
                 new_gid = get_new_gid(p, bounds_by_glac_id)
-                print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
+                #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
                 if new_gid is None:
                     print(f"Topology seems wrong for glac_bound poly: {p}. Skipping.", file=sys.stderr)
@@ -479,7 +477,7 @@ def old_to_new_data_model(query_results, quiet=True):
                     sys.exit(1)
 
                 new_aid = get_new_aid()
-                print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
+                #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
                 #write_new_to_glacier_static(new_gid, new_aid, p)
                 #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
@@ -495,16 +493,16 @@ def old_to_new_data_model(query_results, quiet=True):
                 new_p_geom = Polygon(p.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
                 p.sgeom = shg.polygon.orient(new_p_geom)
 
-                print("In parts loop: appending ", p, file=sys.stderr)
+                #print("In parts loop: appending ", p, file=sys.stderr)
                 bound_objs_to_ingest.append(p)
 
                 # Adjust IDs of misc entities contained by changed glac_bound entities
-                print("Adjusting IDs of misc entities", file=sys.stderr)
+                #print("Adjusting IDs of misc entities", file=sys.stderr)
                 for m in misc_entities_by_glac_id[gid]:
-                    print("  Testing ", m, file=sys.stderr)
+                    #print("  Testing ", m, file=sys.stderr)
                     if p.touches(m) or p.contains(m):
-                        print(f"{m.gid}->{new_gid}", file=sys.stderr)
-                        print(f"{m.aid}->{new_aid}", file=sys.stderr)
+                        #print(f"{m.gid}->{new_gid}", file=sys.stderr)
+                        #print(f"{m.aid}->{new_aid}", file=sys.stderr)
                         m.gid = new_gid
                         m.aid = new_aid
 
@@ -528,12 +526,12 @@ def old_to_new_data_model(query_results, quiet=True):
                 bound_obj.sgeom = holey_geom
                 bound_objs_to_ingest.append(bound_obj)
 
-    print("old_to_new_data_model: returning bound_objs_to_ingest:", file=sys.stderr)
-    print(bound_objs_to_ingest, file=sys.stderr)
-    print([e.as_ewkt_with_srid() for e in bound_objs_to_ingest], file=sys.stderr)
+    #print("old_to_new_data_model: returning bound_objs_to_ingest:", file=sys.stderr)
+    #print(bound_objs_to_ingest, file=sys.stderr)
+    #print([e.as_ewkt_with_srid() for e in bound_objs_to_ingest], file=sys.stderr)
 
-    print("old_to_new_data_model: returning misc_entities_by_glac_id:", file=sys.stderr)
-    print(misc_entities_by_glac_id, file=sys.stderr)
+    #print("old_to_new_data_model: returning misc_entities_by_glac_id:", file=sys.stderr)
+    #print(misc_entities_by_glac_id, file=sys.stderr)
 
     return (bound_objs_to_ingest, misc_entities_by_glac_id)
 
