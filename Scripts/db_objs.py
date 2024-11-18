@@ -35,3 +35,8 @@ class Glacier_entity(object):
 
     def __repr__(self):
         return f"({self.gid}, {self.aid}, {self.line_type})"
+
+    def __iter__(self):
+        # This allows a call like: list(gl_obj) where the sgeom is
+        # a multipolygon that gets expanded into multiple parts
+        return (Glacier_entity((self.gid, self.aid, self.line_type, f'SRID=4326;{e.wkt}')) for e in list(self.sgeom))

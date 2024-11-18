@@ -1,7 +1,7 @@
 import sys
 
 import shapely
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, shape
 #from shapely.wkt import loads as sloads
 import psycopg2
 
@@ -76,18 +76,17 @@ Combined geoms should look something like this:
     return entity_list
 
 
-def _make_fiona_glac_bound_object():
-    obj = {
-              'geometry': {
-                  'type': 'Polygon',
-                  'coordinates': [((0,0), (0,2), (2,2), (2,0), (0,0))]
-              },
-              'properties': {
-                  'id': 'G000001E00001N',
-                  'name': 'The name',
-                  'src_time': '2024-09-09'
-              },
-          }
+def _make_multipolygon_2_simple():
+    # See https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry for format
+    obj = ('G1_multi', 1, 'glac_bound',
+            'SRID=4326;MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 5)))')
+    return obj
+
+
+def _make_multipolygon_2_1_w_hole():
+    # See https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry for format
+    obj = ('G1_multi', 1, 'glac_bound',
+            'SRID=4326;MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))')
     return obj
 
 
@@ -325,3 +324,21 @@ def test_get_new_gid_dupe_in_dict():
     new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys)
     print('new_gid = ', new_gid)
     assert(new_gid in neighbors)
+
+
+def test_Glacier_entity_multi_to_poly():
+    glac_obj_tuple = _make_multipolygon_2_simple()
+    gl_obj = Glacier_entity(glac_obj_tuple)
+    gl_list = list(gl_obj)
+    print("test_Glacier_entity_multi_to_poly: gl_list=", gl_list, file=sys.stderr)
+    print("test_Glacier_entity_multi_to_poly: gl_list[0]=", gl_list[0].as_tuple(), file=sys.stderr)
+    assert(len(gl_list) == 2 and type(gl_list[0]) is Glacier_entity)
+
+
+def test_Glacier_entity_multi_to_poly_hole():
+    glac_obj_tuple = _make_multipolygon_2_1_w_hole()
+    gl_obj = Glacier_entity(glac_obj_tuple)
+    gl_list = list(gl_obj)
+    print("test_Glacier_entity_multi_to_poly_hole: gl_list=", gl_list, file=sys.stderr)
+    print("test_Glacier_entity_multi_to_poly_hole: gl_list[0]=", gl_list[0].as_tuple(), file=sys.stderr)
+    assert(len(gl_list) == 2 and type(gl_list[0]) is Glacier_entity)

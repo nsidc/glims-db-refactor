@@ -372,6 +372,28 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
         issue_sql(m, dbh_new_cur, args)
 
 
+def make_valid_if_possible(gl_obj):
+    '''
+    Use shapely to check validity of geometry, and fix is possible using
+    a zero-buffer operation.  Return None if area changes by too much.
+    Return:
+        gl_obj with valid geometry    if gl_obj's geom is valid or fixed
+        None                          if gl_obj's geom is invalid and not fixable
+    '''
+    if gl_obj.sgeom.is_valid:
+        return gl_obj
+    else:
+        area_before = gl_obj.sgeom.area
+        area_after  = gl_obj.sgeom.buffer(0.0).area
+        pch = 100.0*(area_after - area_before)/area_before
+        if abs(pch) > 2:
+            print("Invalid geom:", gl_obj, "Before:", area_before, "After:", area_after, "Pch:", pch, file=sys.stderr)
+            return None
+        else:
+            gl_obj.sgeom = gl_obj.sgeom.buffer(0.0)
+            return gl_obj
+
+
 def old_to_new_data_model(query_results, quiet=True):
     ''' old_to_new_data_model - translate all query results from old to new data model
 
@@ -417,12 +439,24 @@ def old_to_new_data_model(query_results, quiet=True):
     misc_entities_by_glac_id = defaultdict(list)
 
     # Bin the query results by entity type
-
     for row in query_results:
-        gl_obj = Glacier_entity(row)
-        #print(f"Found a {gl_obj.line_type} object", file=sys.stderr)
+
+        gl_obj = make_valid_if_possible(Glacier_entity(row))
+        if gl_obj is None:
+            # Skip it as unfixable
+            continue
+
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
-            misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
+            try:
+                # Case:  geom is multipolygon
+                temp_objs = []
+                for e in list(gl_obj):
+                    e = make_valid_if_possible(e)
+                    if e is not None:
+                        temp_objs.append(e)
+                misc_entities_by_glac_id[gl_obj.gid].extend(temp_objs)
+            except:
+                misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
             bounds_by_glac_id[gl_obj.gid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
@@ -430,9 +464,9 @@ def old_to_new_data_model(query_results, quiet=True):
         else:
             print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
-    #print("After binning: misc_entities_by_glac_id:\n", misc_entities_by_glac_id, file=sys.stderr)
-    #print("After binning:bounds_by_glac_id:\n", bounds_by_glac_id, file=sys.stderr)
-    #print("After binning:rocks_by_glac_id:\n", rocks_by_glac_id, file=sys.stderr)
+    if not quiet:
+        print("Num entities of type (glac_bound, intrnl_rock, misc):",
+               len(bounds_by_glac_id), len(rocks_by_glac_id), len(misc_entities_by_glac_id))
 
     # Assemble glac_bound polys with holes
     if not quiet:
@@ -444,7 +478,7 @@ def old_to_new_data_model(query_results, quiet=True):
 
         #print("In glac_bound loop.  gl_obj_list:", gl_obj_list, file=sys.stderr)
 
-        if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type == 'MultiPolygon':
+        if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type.lower() == 'multipolygon':
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
 
             # Put all boundary parts into a list of single polygons, even if
@@ -455,6 +489,7 @@ def old_to_new_data_model(query_results, quiet=True):
             parts = []
             for obj in gl_obj_list:
                 try:
+                    # Make use if __iter__ method in Glacier_entity class
                     parts.extend(list(obj))
                 except:
                     parts.append(obj)
@@ -465,6 +500,12 @@ def old_to_new_data_model(query_results, quiet=True):
             #print("parts now is:", parts, file=sys.stderr)
 
             for p in parts:
+
+                if not p.sgeom.is_valid:
+                    print(f"glac_bound poly {p.as_tuple} is not valid", file=sys.stderr)
+                    p = make_valid_if_possible(p)
+                    if p is None:
+                        continue
 
                 new_gid = get_new_gid(p, bounds_by_glac_id)
                 #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
@@ -488,23 +529,31 @@ def old_to_new_data_model(query_results, quiet=True):
                 rocks_to_add = []
                 for n in rocks_by_glac_id[gid]:
                     if p.contains(n):
-                        rocks_to_add.append(n)
+                        try:
+                            # Make use if __iter__ method in Glacier_entity class to explode multipolygons
+                            rocks_to_add.extend(list(n))
+                        except:
+                            rocks_to_add.append(n)
 
-                new_p_geom = Polygon(p.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
+                p_ext_coords = p.sgeom.exterior
+                new_p_geom = Polygon(p_ext_coords, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
                 p.sgeom = shg.polygon.orient(new_p_geom)
 
                 #print("In parts loop: appending ", p, file=sys.stderr)
                 bound_objs_to_ingest.append(p)
 
                 # Adjust IDs of misc entities contained by changed glac_bound entities
-                #print("Adjusting IDs of misc entities", file=sys.stderr)
                 for m in misc_entities_by_glac_id[gid]:
-                    #print("  Testing ", m, file=sys.stderr)
-                    if p.touches(m) or p.contains(m):
-                        #print(f"{m.gid}->{new_gid}", file=sys.stderr)
-                        #print(f"{m.aid}->{new_aid}", file=sys.stderr)
-                        m.gid = new_gid
-                        m.aid = new_aid
+                    if not m.sgeom.is_valid:
+                        print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
+                        continue
+
+                    try:
+                        if p.touches(m) or p.contains(m):
+                            m.gid = new_gid
+                            m.aid = new_aid
+                    except:
+                        pass
 
             # Remove gid entry from bounds_by_glac_id ?
 
@@ -519,7 +568,10 @@ def old_to_new_data_model(query_results, quiet=True):
                     if not bound_obj.contains(r):
                         orphan_rocks_by_glac_id[gid].append(r)
                     else:
-                        int_rocks.append(r)
+                        try:
+                            int_rocks.extend(list(r))
+                        except:
+                            int_rocks.append(r)
 
                 # Assemble holey polygon
                 holey_geom = Polygon(bound_obj.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in int_rocks])
