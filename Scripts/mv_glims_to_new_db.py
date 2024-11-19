@@ -590,6 +590,24 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     return (bound_objs_to_ingest, misc_obj_as_list)
 
 
+def write_new_to_glacier_static(...):
+    all_fields = [
+        'glacier_id',
+        'glacier_name',
+        'wgms_id',
+        'local_glacier_id',
+        'parent_icemass_id',
+        'record_status',
+        'glac_static_points',
+        'glacier_status',
+        'submission_id',
+        'id_num',
+        'est_disappear_date',
+        'est_disappear_unc',
+    ]
+    pass
+
+
 def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
     ''' When multipolygons are converted to multiple single polygons, they need
         new records in the glacier_dynamic table.
