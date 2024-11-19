@@ -362,7 +362,9 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
 
     (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, args.quiet)
 
-    move_sql = glac_objs_to_sql_inserts(glac_bound_objs)
+    print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
+    move_sql =      glac_objs_to_sql_inserts(glac_bound_objs)
+    print("DEBUG: calling glac_objs_to_sql_inserts(misc_glac_objs)", file=sys.stderr)
     move_sql.extend(glac_objs_to_sql_inserts(misc_glac_objs))
 
     if not args.quiet:
@@ -578,14 +580,11 @@ def old_to_new_data_model(query_results, quiet=True):
                 bound_obj.sgeom = holey_geom
                 bound_objs_to_ingest.append(bound_obj)
 
-    #print("old_to_new_data_model: returning bound_objs_to_ingest:", file=sys.stderr)
-    #print(bound_objs_to_ingest, file=sys.stderr)
-    #print([e.as_ewkt_with_srid() for e in bound_objs_to_ingest], file=sys.stderr)
+    misc_obj_as_list = []
+    for gid in misc_entities_by_glac_id:
+        misc_obj_as_list.extend(misc_entities_by_glac_id[gid])
 
-    #print("old_to_new_data_model: returning misc_entities_by_glac_id:", file=sys.stderr)
-    #print(misc_entities_by_glac_id, file=sys.stderr)
-
-    return (bound_objs_to_ingest, misc_entities_by_glac_id)
+    return (bound_objs_to_ingest, misc_obj_as_list)
 
 
 def glac_objs_to_sql_inserts(obj_list):
@@ -603,7 +602,12 @@ def glac_objs_to_sql_inserts(obj_list):
 
     '''
     move_sql = []
-    for gl_obj in obj_list:
+    for i, gl_obj in enumerate(obj_list):
+
+        # DEBUG
+        if type(gl_obj) is not Glacier_entity:
+            print(f"Found non-Glacier_entity in object number {i}: ", gl_obj, file=sys.stderr)
+            sys.exit(1)
 
         gid = gl_obj.gid
         #print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
