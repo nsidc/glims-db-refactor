@@ -243,24 +243,22 @@ def issue_sql(sql, dbh_new_cur, args):
         print(sql, file=sys.stdout)
 
 
-def get_new_aid(now_using=None):
+def next_aid_generator():
     '''
-    Get next available analysis ID
+    Get next available analysis ID, starting with the one from the next_ids service.
     '''
-    if now_using is None:
-        # query service for next aid
-        service_url = 'https://www.glims.org/services/next_ids'
+    # query service for next aid
+    service_url = 'https://www.glims.org/services/next_ids'
 
-        with urllib.request.urlopen(service_url) as response:
-            json_return = response.read()
+    with urllib.request.urlopen(service_url) as response:
+        json_return = response.read()
 
-            next_ids = json.loads(json_return)
-            next_aid = int(next_ids['analysis_id'])
+        next_ids = json.loads(json_return)
+        next_aid = int(next_ids['analysis_id'])
 
-            return next_aid
-
-    else:
-        return now_using + 1
+    while True:
+        yield next_aid
+        next_aid += 1
 
 
 def get_new_gid(p, bounds_by_glac_id):
@@ -360,7 +358,7 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     if not args.quiet:
         print(f"Selected {len(query_results)} records from table {T}", file=sys.stderr)
 
-    (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, args.quiet)
+    (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, dbh_new_cur, args)
 
     print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
     move_sql =      glac_objs_to_sql_inserts(glac_bound_objs)
@@ -396,7 +394,7 @@ def make_valid_if_possible(gl_obj):
             return gl_obj
 
 
-def old_to_new_data_model(query_results, quiet=True):
+def old_to_new_data_model(query_results, dbh_new_cur, args):
     ''' old_to_new_data_model - translate all query results from old to new data model
 
     Input:  query_results, a list of tuples from the glacier_polygons table
@@ -440,6 +438,8 @@ def old_to_new_data_model(query_results, quiet=True):
     orphan_rocks_by_glac_id = defaultdict(list)
     misc_entities_by_glac_id = defaultdict(list)
 
+    get_new_aid = next_aid_generator()
+
     # Bin the query results by entity type
     for row in query_results:
 
@@ -466,12 +466,12 @@ def old_to_new_data_model(query_results, quiet=True):
         else:
             print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
-    if not quiet:
+    if not args.quiet:
         print("Num entities of type (glac_bound, intrnl_rock, misc):",
-               len(bounds_by_glac_id), len(rocks_by_glac_id), len(misc_entities_by_glac_id))
+               len(bounds_by_glac_id), len(rocks_by_glac_id), len(misc_entities_by_glac_id), file=sys.stderr)
 
     # Assemble glac_bound polys with holes
-    if not quiet:
+    if not args.quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
     bound_objs_to_ingest = []  # single item or list from multi-polygons
@@ -509,6 +509,7 @@ def old_to_new_data_model(query_results, quiet=True):
                     if p is None:
                         continue
 
+                old_gid = p.gid
                 new_gid = get_new_gid(p, bounds_by_glac_id)
                 #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
@@ -519,7 +520,8 @@ def old_to_new_data_model(query_results, quiet=True):
                     print(f"No candidate IDs were found for glac_bound poly: {p}. Exiting.", file=sys.stderr)
                     sys.exit(1)
 
-                new_aid = get_new_aid()
+                old_aid = p.aid
+                new_aid = next(get_new_aid)
                 #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
                 #write_new_to_glacier_static(new_gid, new_aid, p)
@@ -542,6 +544,7 @@ def old_to_new_data_model(query_results, quiet=True):
                 p.sgeom = shg.polygon.orient(new_p_geom)
 
                 #print("In parts loop: appending ", p, file=sys.stderr)
+                add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
                 bound_objs_to_ingest.append(p)
 
                 # Adjust IDs of misc entities contained by changed glac_bound entities
@@ -585,6 +588,82 @@ def old_to_new_data_model(query_results, quiet=True):
         misc_obj_as_list.extend(misc_entities_by_glac_id[gid])
 
     return (bound_objs_to_ingest, misc_obj_as_list)
+
+
+def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
+    ''' When multipolygons are converted to multiple single polygons, they need
+        new records in the glacier_dynamic table.
+    '''
+
+    # Make SQL to do insert by combining the new info with that already in
+    # glacier_dynamic.  This is the INSERT INTO SELECT form.
+
+    # All fields from glacier_dynamic except db_calculated_area, which will
+    # need to be recalculated.
+
+    all_glacier_dynamic_fields = [
+         'analysis_id',
+         'glacier_id',
+         'analysis_timestamp',
+         'rc_id',
+         'contact_id',
+         'three_d_desc',
+         'width',
+         'length',
+         'area',
+         'abzone_area',
+         'speed',
+         'snowline_elev',
+         'ela',
+         'ela_desc',
+         'primary_classification',
+         'primary_classification2',
+         'form',
+         'frontal_characteristics',
+         'frontal_characteristics2',
+         'longitudinal_characteristics',
+         'dominant_mass_source',
+         'tongue_activity',
+         'tongue_activity2',
+         'moraine_code1',
+         'moraine_code2',
+         'debris_cover',
+         'record_status',
+         'icesheet_conn_level',
+         'source_timestamp',
+         'min_elev',
+         'mean_elev',
+         'max_elev',
+         'orientation_accum',
+         'basin_code',
+         'num_basins',
+         'avg_slope',
+         'submission_id',
+         'orientation_ablat',
+         'thickness_m',
+         'orientation',
+         'median_elev',
+         'rgiid',
+         'rgi_glactype',
+         'rgi_join_count',
+         'rgi_maxlength_m',
+         'gtng_o1region',
+         'gtng_o2region',
+         'rgiflag',
+         'src_time_end',
+         'surge_type',
+         'term_type',
+    ]
+
+    # Replace analysis_id and glacier_id with the new ones
+    fields_to_copy_from_old_rec = all_glacier_dynamic_fields[2:]
+
+    # Add table name to field names.
+    fields_to_copy_with_table = ['gd.' + e for e in fields_to_copy_from_old_rec]
+
+    sql = f"INSERT INTO data.glacier_dynamic ( {','.join(all_glacier_dynamic_fields)} ) SELECT {gl_obj.aid}, '{gl_obj.gid}', {','.join(fields_to_copy_with_table)} FROM glacier_dynamic gd WHERE gd.analysis_id={old_aid};"
+
+    issue_sql(sql, dbh_new_cur, args)
 
 
 def glac_objs_to_sql_inserts(obj_list):
@@ -767,6 +846,8 @@ def main():
         print_arg_summary(args)
 
     do_db_move(args)
+
+    print("-- DONE")
 
     # End of main
 
