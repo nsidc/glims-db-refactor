@@ -524,7 +524,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 new_aid = next(get_new_aid)
                 #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
-                write_new_to_glacier_static(old_gid, new_gid, p)
+                write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
                 #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
 
                 p.gid = new_gid
@@ -590,7 +590,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     return (bound_objs_to_ingest, misc_obj_as_list)
 
 
-def write_new_to_glacier_static(old_gid, new_gid, gl_obj):
+def write_new_to_glacier_static(gl_obj, old_gid, new_gid, dbh_new_cur, args):
     all_glacier_static_fields = [
         'glacier_id',
         'glacier_name',
@@ -612,7 +612,7 @@ def write_new_to_glacier_static(old_gid, new_gid, gl_obj):
     # Add table name to field names.
     fields_to_copy_with_table = ['gs.' + e for e in fields_to_copy_from_old_rec]
 
-    sql = f"INSERT INTO data.glacier_static ( {','.join(all_static_dynamic_fields)} ) SELECT '{new_gid}', {','.join(fields_to_copy_with_table)} FROM glacier_static gs WHERE gs.glacier_id={old_gid};"
+    sql = f"INSERT INTO data.glacier_static ( {','.join(all_glacier_static_fields)} ) SELECT '{new_gid}', {','.join(fields_to_copy_with_table)} FROM glacier_static gs WHERE gs.glacier_id='{old_gid}';"
     issue_sql(sql, dbh_new_cur, args)
 
 
