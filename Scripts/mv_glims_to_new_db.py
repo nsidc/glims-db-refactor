@@ -317,11 +317,8 @@ def is_good_new_id(gid, bounds_by_glac_id):
 
     if 'message' in rtn_object and rtn_object['message'].startswith('No records found'):
         return True
-    elif 'glacierinfo' in rtn_object:
+    else:
         return False
-
-    # Shouldn't get here...
-    return None
 
 
 def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
