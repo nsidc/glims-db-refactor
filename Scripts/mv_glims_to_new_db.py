@@ -202,26 +202,30 @@ def check_table_dependencies(tables):
     return True
 
 
-def connect_to_db():
-    try:
-        db_old = psycopg2.connect(CONN)
-    except:
-        print(f"Unable to connect to the old database.", file=sys.stderr)
+def connect_to_db(db='old'):
+    if db == 'old':
+        try:
+            db_old = psycopg2.connect(CONN)
+        except:
+            print(f"Unable to connect to the old database.", file=sys.stderr)
+            sys.exit(1)
+
+        return db_old.cursor()
+
+    elif db == 'new':
+
+        try:
+            db_new = psycopg2.connect(CONN_V2)
+        except psycopg2.Error as e:
+            print(f"Unable to connect to the new database: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        db_new.set_session(autocommit=True)
+
+        return db_new.cursor()
+    else:
+        print(f"connect_to_db: unrecognized db: {db}", file=sys.stderr)
         sys.exit(1)
-
-    dbh_old_cur  = db_old.cursor()
-
-    try:
-        db_new = psycopg2.connect(CONN_V2)
-    except psycopg2.Error as e:
-        print(f"Unable to connect to the new database: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    db_new.set_session(autocommit=True)
-
-    dbh_new_cur  = db_new.cursor()
-
-    return (dbh_old_cur, dbh_new_cur)
 
 
 def issue_sql(sql, dbh_new_cur, args):
@@ -238,9 +242,11 @@ def issue_sql(sql, dbh_new_cur, args):
         except psycopg2.Error as e:
             print("Execution of the following SQL failed.  Stopping.", file=sys.stderr)
             print(f"Error message:  {e}.\n", file=sys.stderr)
-            sys.exit(1)
+            return None
     else:
         print(sql, file=sys.stdout)
+
+    return True
 
 
 def next_aid_generator():
@@ -366,7 +372,7 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
         print(f"Issuing {len(move_sql)} SQL statements...", file=sys.stderr)
 
     for m in move_sql:
-        issue_sql(m, dbh_new_cur, args)
+        rtn_code = issue_sql(m, dbh_new_cur, args)
 
 
 def make_valid_if_possible(gl_obj):
@@ -521,7 +527,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 new_aid = next(get_new_aid)
                 #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
-                write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
+                rtn_code = write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
                 #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
 
                 p.gid = new_gid
@@ -610,7 +616,8 @@ def write_new_to_glacier_static(gl_obj, old_gid, new_gid, dbh_new_cur, args):
     fields_to_copy_with_table = ['gs.' + e for e in fields_to_copy_from_old_rec]
 
     sql = f"INSERT INTO data.glacier_static ( {','.join(all_glacier_static_fields)} ) SELECT '{new_gid}', {','.join(fields_to_copy_with_table)} FROM glacier_static gs WHERE gs.glacier_id='{old_gid}';"
-    issue_sql(sql, dbh_new_cur, args)
+    rtn_code = issue_sql(sql, dbh_new_cur, args)
+    return rtn_code
 
 
 def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
@@ -686,7 +693,8 @@ def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
 
     sql = f"INSERT INTO data.glacier_dynamic ( {','.join(all_glacier_dynamic_fields)} ) SELECT {gl_obj.aid}, '{gl_obj.gid}', {','.join(fields_to_copy_with_table)} FROM glacier_dynamic gd WHERE gd.analysis_id={old_aid};"
 
-    issue_sql(sql, dbh_new_cur, args)
+    rtn_code = issue_sql(sql, dbh_new_cur, args)
+    return rtn_code
 
 
 def glac_objs_to_sql_inserts(obj_list):
@@ -801,7 +809,8 @@ def do_db_move(args):
         sys.exit(2)
 
     # Open connections to both databases
-    dbh_old_cur, dbh_new_cur = connect_to_db()
+    dbh_old_cur = connect_to_db('old')
+    dbh_new_cur = connect_to_db('new')
 
     # Do sanity check if option from_Glacier_entities is True
     if args.from_Glacier_entities:
@@ -834,7 +843,9 @@ def do_db_move(args):
             sql = f'SELECT * from {T} {sort_by};'
             dbh_old_cur.execute(sql)
             for row in dbh_old_cur.fetchall():
-                issue_sql(insert_row_as_simple_copy(T, row), dbh_new_cur, args)
+                rtn_code = issue_sql(insert_row_as_simple_copy(T, row), dbh_new_cur, args)
+                if rtn_code is None and not args.quiet:
+                    print("Warning: SQL failed", file=sys.stderr)
 
     # psycopg2 uses transactions by default, which must be commited
     #issue_sql('COMMIT;', dbh_new_cur, args)

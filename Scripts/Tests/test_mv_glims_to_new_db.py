@@ -279,33 +279,26 @@ def test_testdata_multiple_holes():
     assert(outer_area == 88.0 and combined_area == 76.0)
 
 
-def test_connect_to_db():
-    old_cur, new_cur = mv.connect_to_db()
-    assert(type(old_cur) is psycopg2.extensions.cursor and type(new_cur) is psycopg2.extensions.cursor)
+def test_connect_to_db_old_by_default():
+    old_cur = mv.connect_to_db()
+    assert(type(old_cur) is psycopg2.extensions.cursor)
 
 
-def test_old_to_new_data_model():
-    '''
-    Test full representation of test data in new data model
-    '''
-    testdata = _make_test_data()
-    (glac_objs, misc_objs) = mv.old_to_new_data_model(testdata)
-    print("test_old_to_new_data_model: Input data:\n", testdata)
-    print("glac_objs:\n", glac_objs)
-    print("misc_objs:\n", misc_objs)
-    assert(len(glac_objs) == 4 and len(misc_objs) == 3)
+def test_connect_to_db_old_by_arg():
+    old_cur = mv.connect_to_db(db='old')
+    assert(type(old_cur) is psycopg2.extensions.cursor)
 
 
-def test_get_new_aid_now_using():
-    got = mv.get_new_aid(42)
-    expect = 43
-    assert(got == expect)
+def test_connect_to_db_new_by_arg():
+    new_cur = mv.connect_to_db(db='new')
+    assert(type(new_cur) is psycopg2.extensions.cursor)
 
 
-def test_get_new_aid_fresh():
-    got = mv.get_new_aid()
-    expect = 1054461
-    assert(got >= expect)
+def test_get_new_aid_generator():
+    get_new_aid = mv.next_aid_generator()
+    aid_a = next(get_new_aid)
+    aid_b = next(get_new_aid)
+    assert(aid_b - aid_a == 1)
 
 
 def test_get_new_gid_new():
