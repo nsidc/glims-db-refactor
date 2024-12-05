@@ -377,24 +377,22 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
 
 def make_valid_if_possible(gl_obj):
     '''
-    Use shapely to check validity of geometry, and fix is possible using
-    a zero-buffer operation.  Return None if area changes by too much.
+    Use shapely to check validity of geometry, and fix if possible using
+    a zero-buffer operation.  Return None if the resulting polygon is still not valid.
     Return:
-        gl_obj with valid geometry    if gl_obj's geom is valid or fixed
-        None                          if gl_obj's geom is invalid and not fixable
+        gl_obj with valid geometry    if gl_obj's geom is already valid, or fixed with buffering
+        None                          if gl_obj's geom is invalid even after buffering
     '''
     if gl_obj.sgeom.is_valid:
         return gl_obj
+
+    buffed_geom  = gl_obj.sgeom.buffer(0.0)
+    if buffed_geom.is_valid:
+        gl_obj.sgeom = buffed_geom
+        return gl_obj
     else:
-        area_before = gl_obj.sgeom.area
-        area_after  = gl_obj.sgeom.buffer(0.0).area
-        pch = 100.0*(area_after - area_before)/area_before
-        if abs(pch) > 2:
-            print("Invalid geom:", gl_obj, "Before:", area_before, "After:", area_after, "Pch:", pch, file=sys.stderr)
-            return None
-        else:
-            gl_obj.sgeom = gl_obj.sgeom.buffer(0.0)
-            return gl_obj
+        print("Invalid geom:", gl_obj, file=sys.stderr)
+        return None
 
 
 def old_to_new_data_model(query_results, dbh_new_cur, args):

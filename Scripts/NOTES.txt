@@ -79,3 +79,36 @@ segments, lines, etc.
 There are currently polygon, line, and point queries, the results of which end
 up in different shapefiles.  So, I need to define new views for these that
 include something like "WHERE glacier_entities.line_type=<geomtype>".
+
+
+2024-11-27
+
+To do this move, I think I should do:
+
+1.  simple row-by-row copy up through submission_info;
+2.  step through the glacier_dynamic and glacier_static tables and analyze the
+    outlines together, break up multipolygons, then write what survives or gets
+    created to those three tables;
+3.  write the remaining tables, saving those possibly new or changed primary
+    keys (glacier_id and analysis_id values).
+
+
+2024-11-29
+
+The run_on_iceland.sh process seems to have finished normally.  Took 45.53 hours.  Needs testing.
+
+- Download data (reprovision services first) and visualize
+
+
+2024-12-03
+
+Geometry is still messed up.  Something is wrong in the translation from the
+shapely representation to the form I'm giving PostGIS.  Will first try pgsql2shp.
+
+Transfer of polygons from old to new DBs apparently is dropping the largest
+polygon encompassing all of Vatnajokull.  The geometry problems, however, might
+be in the new download script, since I don't see problems in the shapefile from
+the pgsql2shp script.
+
+So, I need the transfer script to be less sensitive to topology errors.  The
+approach taken in the make_valid_if_possible routine is not the right one.
