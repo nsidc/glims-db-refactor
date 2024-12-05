@@ -582,7 +582,8 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 # Assemble holey polygon
                 holey_geom = Polygon(bound_obj.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in int_rocks])
                 bound_obj.sgeom = holey_geom
-                bound_objs_to_ingest.append(bound_obj)
+
+            bound_objs_to_ingest.append(bound_obj)
 
     misc_obj_as_list = []
     for gid in misc_entities_by_glac_id:
