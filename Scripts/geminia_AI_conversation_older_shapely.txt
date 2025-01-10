@@ -1,0 +1,24 @@
+2025-01-10
+
+from shapely.geometry import Polygon
+
+def close_ring(ring):
+    if ring[0] != ring[-1]:
+        ring = ring + [ring[0]]
+    return ring
+
+def create_polygon_with_hole(exterior_coords, interior_coords):
+    exterior_coords = close_ring(exterior_coords)
+    interior_coords = close_ring(interior_coords)
+    return Polygon(exterior_coords, [interior_coords])
+
+# Example Usage
+exterior = [(0, 0), (10, 0), (10, 10), (0, 10)]
+interior = [(1, 1), (9, 1), (9, 9), (1, 9)]
+polygon_with_hole = create_polygon_with_hole(exterior, interior)
+
+exterior2 = [(2,2),(8,2),(8,8),(2,8)]
+polygon_with_double_hole = create_polygon_with_hole(exterior, [interior, exterior2])
+
+print(polygon_with_hole.wkt)
+print(polygon_with_double_hole.wkt)

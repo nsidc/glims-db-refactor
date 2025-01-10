@@ -375,6 +375,12 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
         rtn_code = issue_sql(m, dbh_new_cur, args)
 
 
+def close_ring(ring):
+    if ring[0] != ring[-1]:
+        ring = ring + [ring[0]]
+    return ring
+
+
 def make_valid_if_possible(gl_obj):
     '''
     Use shapely to check validity of geometry, and fix if possible using
@@ -386,7 +392,7 @@ def make_valid_if_possible(gl_obj):
     if gl_obj.sgeom.is_valid:
         return gl_obj
 
-    buffed_geom  = gl_obj.sgeom.buffer(0.0)
+    buffed_geom  = shg.polygon.orient(gl_obj.sgeom.buffer(0.0))
     if buffed_geom.is_valid:
         gl_obj.sgeom = buffed_geom
         return gl_obj
@@ -541,8 +547,8 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                             rocks_to_add.append(n)
 
                 p_ext_coords = p.sgeom.exterior
-                new_p_geom = Polygon(p_ext_coords, holes=[list(e.sgeom.exterior.coords) for e in rocks_to_add])
-                p.sgeom = shg.polygon.orient(new_p_geom)
+                new_p_geom = Polygon(close_ring(p_ext_coords), holes=[list(close_ring(e.sgeom.exterior.coords)) for e in rocks_to_add])
+                p.sgeom = make_valid_if_possible(new_p_geom)
 
                 #print("In parts loop: appending ", p, file=sys.stderr)
                 add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
@@ -580,7 +586,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                             int_rocks.append(r)
 
                 # Assemble holey polygon
-                holey_geom = Polygon(bound_obj.sgeom.exterior, holes=[list(e.sgeom.exterior.coords) for e in int_rocks])
+                holey_geom = Polygon(close_ring(bound_obj.sgeom.exterior), holes=[list(close_ring(e.sgeom.exterior.coords)) for e in int_rocks])
                 bound_obj.sgeom = holey_geom
 
             bound_objs_to_ingest.append(bound_obj)
