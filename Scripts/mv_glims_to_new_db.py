@@ -381,24 +381,64 @@ def close_ring(ring):
     return ring
 
 
-def make_valid_if_possible(gl_obj):
+def make_valid_poly_if_possible(poly):
     '''
-    Use shapely to check validity of geometry, and fix if possible using
-    a zero-buffer operation.  Return None if the resulting polygon is still not valid.
-    Return:
-        gl_obj with valid geometry    if gl_obj's geom is already valid, or fixed with buffering
-        None                          if gl_obj's geom is invalid even after buffering
-    '''
-    if gl_obj.sgeom.is_valid:
-        return gl_obj
+    Use shapely to check validity of a Polygon geometry, and fix if possible.
 
-    buffed_geom  = shg.polygon.orient(gl_obj.sgeom.buffer(0.0))
-    if buffed_geom.is_valid:
-        gl_obj.sgeom = buffed_geom
-        return gl_obj
+    Return:
+        Valid Polygon geometry        if input poly is already valid, or fixed with buffering
+        None                          if input poly is invalid even after buffering
+    '''
+    if poly.is_valid:
+        return poly
+
+    #buffed_poly  = shg.polygon.orient(poly.buffer(0.0))
+    buffed_poly  = poly.buffer(0.0)
+    if buffed_poly.is_valid:
+        return buffed_poly
     else:
-        print("Invalid geom:", gl_obj, file=sys.stderr)
+        print("Invalid poly:", poly, file=sys.stderr)
         return None
+
+
+def make_valid_if_possible(gl_obj):
+    ''' Like above make_valid_poly_if_possible, but operate on Glacier_entity object
+    '''
+    if type(gl_obj) is Glacier_entity:
+        fixed_geom = make_valid_poly_if_possible(gl_obj.sgeom)
+        gl_obj.sgeom = fixed_geom
+        return gl_obj
+    elif type(gl_obj) is Polygon:
+        return make_valid_poly_if_possible(gl_obj)
+    else:
+        print("Warning: make_valid_if_possible wants a Glacier_entity object: ", file=sys.stderr)
+        sys.exit(1)
+
+
+def explode_multipolygons(gl_obj_list):
+    ''' Input:  list of glacier objects, each of which might be
+        a multi-polygon, or possibly a list of glacier objects, or a mixed list of
+        single and multi-polygons.
+
+        Output:  a list (parts) with all the parts exploded (flattened) into
+        a one-level list, possibly recursively.
+
+        Glacier_entity objects could be POLYGON or "POLYGON Z", hence the
+        "startswith" below.
+
+    '''
+
+    parts = []
+
+    for o in gl_obj_list:
+        if type(o) is Glacier_entity and o.sgeom.geom_type.lower() == 'multipolygon':
+            parts.extend(list(o))
+        elif type(o) is Glacier_entity and o.sgeom.geom_type.lower().startswith('polygon'):
+            parts.append(o)
+        elif type(o) is list:
+            parts.extend(explode_multipolygons(o))
+
+    return parts
 
 
 def old_to_new_data_model(query_results, dbh_new_cur, args):
@@ -450,10 +490,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     # Bin the query results by entity type
     for row in query_results:
 
-        gl_obj = make_valid_if_possible(Glacier_entity(row))
-        if gl_obj is None:
-            # Skip it as unfixable
-            continue
+        gl_obj = Glacier_entity(row)
 
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
             try:
@@ -495,13 +532,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             # the parts as single polygons into a list).  If the part is
             # a single polygon, then the "except" branch is run.
 
-            parts = []
-            for obj in gl_obj_list:
-                try:
-                    # Make use if __iter__ method in Glacier_entity class
-                    parts.extend(list(obj))
-                except:
-                    parts.append(obj)
+            parts = explode_multipolygons(gl_obj_list)
 
             # Give each part a new identity (gid, aid, etc) and put nunataks in
             # boundary polygon as holes.
@@ -541,13 +572,13 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 for n in rocks_by_glac_id[gid]:
                     if p.contains(n):
                         try:
-                            # Make use if __iter__ method in Glacier_entity class to explode multipolygons
+                            # Make use of __iter__ method in Glacier_entity class to explode multipolygons
                             rocks_to_add.extend(list(n))
                         except:
                             rocks_to_add.append(n)
 
-                p_ext_coords = p.sgeom.exterior
-                new_p_geom = Polygon(close_ring(p_ext_coords), holes=[list(close_ring(e.sgeom.exterior.coords)) for e in rocks_to_add])
+                p_ext_coords = p.sgeom.exterior.coords
+                new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
                 p.sgeom = make_valid_if_possible(new_p_geom)
 
                 #print("In parts loop: appending ", p, file=sys.stderr)
@@ -586,7 +617,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                             int_rocks.append(r)
 
                 # Assemble holey polygon
-                holey_geom = Polygon(close_ring(bound_obj.sgeom.exterior), holes=[list(close_ring(e.sgeom.exterior.coords)) for e in int_rocks])
+                holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
                 bound_obj.sgeom = holey_geom
 
             bound_objs_to_ingest.append(bound_obj)

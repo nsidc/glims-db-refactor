@@ -85,7 +85,7 @@ def _make_multipolygon_2_simple():
 
 def _make_multipolygon_2_1_w_hole():
     # See https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry for format
-    obj = ('G1_multi', 1, 'glac_bound',
+    obj = ('G1_multi_h', 2, 'glac_bound',
             'SRID=4326;MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))')
     return obj
 
@@ -335,3 +335,34 @@ def test_Glacier_entity_multi_to_poly_hole():
     print("test_Glacier_entity_multi_to_poly_hole: gl_list=", gl_list, file=sys.stderr)
     print("test_Glacier_entity_multi_to_poly_hole: gl_list[0]=", gl_list[0].as_tuple(), file=sys.stderr)
     assert(len(gl_list) == 2 and type(gl_list[0]) is Glacier_entity)
+
+
+def test_explode_multipolygons_list_of_singles():
+    g1 = _make_Glacier_entity_object()
+    g2 = _make_Glacier_entity_object()
+    glist = [g1, g2]
+    parts = mv.explode_multipolygons(glist)
+    assert(len(parts) == 2 and type(parts[0]) is Glacier_entity and type(parts[1]) is Glacier_entity)
+
+
+def test_explode_multipolygons_one_multi():
+    glac_obj_tuple = _make_multipolygon_2_simple()
+    gl_obj = Glacier_entity(glac_obj_tuple)
+    parts = mv.explode_multipolygons(gl_obj)
+    print("test_explode_multipolygons_one_multi: parts=", parts, file=sys.stderr)
+    print("test_explode_multipolygons_one_multi: parts[0]=", parts[0].as_tuple(), file=sys.stderr)
+    assert(len(parts) == 2 and type(parts[0]) is Glacier_entity)
+
+
+def test_explode_multipolygons_list_of_multi():
+    glac_obj_tuple = _make_multipolygon_2_simple()
+    gl_obj_1 = Glacier_entity(glac_obj_tuple)
+
+    glac_obj_tuple = _make_multipolygon_2_1_w_hole()
+    gl_obj_2 = Glacier_entity(glac_obj_tuple)
+
+    glist = [gl_obj_1, gl_obj_2]
+    parts = mv.explode_multipolygons(glist)
+    print("test_explode_multipolygons_list_of_multi: glist=", parts, file=sys.stderr)
+    print("test_explode_multipolygons_list_of_multi: parts[0]=", parts[0].as_tuple(), file=sys.stderr)
+    assert(len(parts) == 4 and type(parts[0]) is Glacier_entity)
