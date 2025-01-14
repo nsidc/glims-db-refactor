@@ -112,3 +112,10 @@ the pgsql2shp script.
 
 So, I need the transfer script to be less sensitive to topology errors.  The
 approach taken in the make_valid_if_possible routine is not the right one.
+
+
+2025-01-13
+
+The current version seems to fix topology, and also explodes glacier boundary
+polygon lists and multi-polygons.  I think I need to do the same for the
+internal rock polygons.

@@ -569,13 +569,9 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 p.aid = new_aid
 
                 rocks_to_add = []
-                for n in rocks_by_glac_id[gid]:
+                for n in explode_multipolygons(rocks_by_glac_id[gid]):
                     if p.contains(n):
-                        try:
-                            # Make use of __iter__ method in Glacier_entity class to explode multipolygons
-                            rocks_to_add.extend(list(n))
-                        except:
-                            rocks_to_add.append(n)
+                        rocks_to_add.append(n)
 
                 p_ext_coords = p.sgeom.exterior.coords
                 new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
@@ -604,17 +600,14 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             # Single glac_bound polygon. Find any intrnl_rock polys
             bound_obj = gl_obj_list[0]
             if gid in rocks_by_glac_id:
-                rock_objs = rocks_by_glac_id[gid]
+                rock_objs = explode_multipolygons(rocks_by_glac_id[gid])
                 # Check for containment...
                 int_rocks = []
                 for r in rock_objs:
                     if not bound_obj.contains(r):
                         orphan_rocks_by_glac_id[gid].append(r)
                     else:
-                        try:
-                            int_rocks.extend(list(r))
-                        except:
-                            int_rocks.append(r)
+                        int_rocks.append(r)
 
                 # Assemble holey polygon
                 holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
