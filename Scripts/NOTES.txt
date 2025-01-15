@@ -119,3 +119,14 @@ approach taken in the make_valid_if_possible routine is not the right one.
 The current version seems to fix topology, and also explodes glacier boundary
 polygon lists and multi-polygons.  I think I need to do the same for the
 internal rock polygons.
+
+
+2025-01-15
+
+Ran the move script with the new "explode_multipolygons" function applied to
+the glac_bound polygons, but not the internal rock polygons.  Results look the
+same:  great when using pgsql2shp, but connecting lines when using the download
+function.
+
+Will now truncate the DB and run again using the version of the move script the
+applies the explode_multipolygons function to the internal rocks also.
