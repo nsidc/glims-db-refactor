@@ -267,7 +267,7 @@ def next_aid_generator():
         next_aid += 1
 
 
-def get_new_gid(p, bounds_by_glac_id):
+def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
     '''
     Calculate a new GLIMS glacier ID for this object, making sure it doesn't
     already exist in the list of glaciers in this run.  Make sure it's also not
@@ -299,20 +299,20 @@ def get_new_gid(p, bounds_by_glac_id):
     neighs = GLIMS_ID.neighbors(rep_point_id)
 
     for id_to_try in [rep_point_id] + neighs:
-        if is_good_new_id(id_to_try, bounds_by_glac_id):
+        if is_good_new_id(id_to_try, used_glacier_ids):
             #print("   --> get_new_gid: returning ", id_to_try, file=sys.stderr)
             return id_to_try
 
     return 'no_candidates'
 
 
-def is_good_new_id(gid, bounds_by_glac_id):
+def is_good_new_id(gid, used_glacier_ids):
     '''
-    Check candiate glacier ID for uniqueness: mustn't be in bounds_by_glac_id or in the database
+    Check candiate glacier ID for uniqueness: mustn't be in used_glacier_ids or in the database
     '''
 
     # Check bounds_by_glac_id and fail fast if not unique
-    if gid in bounds_by_glac_id:
+    if gid in used_glacier_ids:
         return False
 
     # Check db
@@ -518,6 +518,9 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     if not args.quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
+    # Start dictionary (for fast access) of already-used GLIMS glacier IDs to avoid collisions
+    used_glacier_ids = dict(zip(bounds_by_glac_id.keys(), [1]*len(bounds_by_glac_id.keys())))
+
     bound_objs_to_ingest = []  # single item or list from multi-polygons
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
@@ -548,7 +551,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                         continue
 
                 old_gid = p.gid
-                new_gid = get_new_gid(p, bounds_by_glac_id)
+                new_gid = get_new_gid(p, bounds_by_glac_id, used_glacier_ids)
                 #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
                 if new_gid is None:
@@ -567,6 +570,8 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
 
                 p.gid = new_gid
                 p.aid = new_aid
+
+                used_glacier_ids[new_gid] = 1
 
                 rocks_to_add = []
                 for n in explode_multipolygons(rocks_by_glac_id[gid]):

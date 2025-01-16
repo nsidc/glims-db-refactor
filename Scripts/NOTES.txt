@@ -130,3 +130,7 @@ function.
 
 Will now truncate the DB and run again using the version of the move script the
 applies the explode_multipolygons function to the internal rocks also.
+
+I see that some inserts into glacier_static are failing due to duplicate
+glacier IDs.  So, the process of assigning new glacier IDs to parts from
+multipolygons is not doing adequate checking for already-used IDs.
