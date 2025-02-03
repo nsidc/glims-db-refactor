@@ -38,17 +38,22 @@ def print_arg_summary(args):
 def setup_argument_parser():
     """Set up command line options.  -h or --help for help is automatic"""
     b_help = 'Bounding box to define region for move. Format: --bbox=W,S,E,N'
-    G_help = 'Copy all tables from "glacier_entities" on. Previous tables should be in the new DB already.'
+    F_help = 'Copy all tables from "glacier_entities" on. Previous tables should be in the new DB already.'
     T_help = 'Copy all tables up to, but not including, "glacier_entities".'
 
     p = argparse.ArgumentParser()
 
-    p.add_argument('-b', '--bbox', default='all',  help=b_help)
+    g1 = p.add_mutually_exclusive_group()
+    g1.add_argument('-b', '--bbox', default='all',  help=b_help)
+    g1.add_argument('-s', '--subm_id', help=b_help)
+
+    g2 = p.add_mutually_exclusive_group()
+    g2.add_argument('-F', '--From_glacier_entities', action='store_true', help=F_help)
+    g2.add_argument('-T', '--To_glacier_entities', action='store_true',  help=T_help)
+
     p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
-    p.add_argument('-G', '--from_Glacier_entities', action='store_true',  help=G_help)
     p.add_argument('-L', '--list_tables', action='store_true',  help='Show table list and exit')
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
-    p.add_argument('-T', '--To_glacier_entities', action='store_true',  help=T_help)
     p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
     return(p)
@@ -265,6 +270,25 @@ def next_aid_generator():
     while True:
         yield next_aid
         next_aid += 1
+
+
+def assign_correct_gid(p, bounds_by_glac_id, processed_single_polys):
+    '''
+    assign_correct_gid -- assign a glacier ID to a new part, taking into
+                        account overlap relationships with other glaciers
+
+    Case:  Two overlapping multi-polygons, both of which should be broken up,
+    but the overlapping pieces should get the same GLIMS glacier IDs.
+
+    The overlap check needs to be done with all glaciers in the region, not
+    just the glacier polygons sharing a glacier ID.  Therefore, this script
+    needs to be run on a region at a time.  Otherwise, the run time will be
+    prohibitive, O(N2) I think.
+
+    '''
+
+    # Previous approach:
+    return get_new_gid(p, bounds_by_glac_id, used_glacier_ids)
 
 
 def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
@@ -521,6 +545,9 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     # Start dictionary (for fast access) of already-used GLIMS glacier IDs to avoid collisions
     used_glacier_ids = dict(zip(bounds_by_glac_id.keys(), [1]*len(bounds_by_glac_id.keys())))
 
+    # Create a new structure for storing all the already-processed single polygon objects
+    # HERE
+
     bound_objs_to_ingest = []  # single item or list from multi-polygons
 
     for gid, gl_obj_list in bounds_by_glac_id.items():
@@ -551,7 +578,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                         continue
 
                 old_gid = p.gid
-                new_gid = get_new_gid(p, bounds_by_glac_id, used_glacier_ids)
+                new_gid = assign_correct_gid(p, bounds_by_glac_id, used_glacier_ids)
                 #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
                 if new_gid is None:
@@ -829,7 +856,7 @@ def do_db_move(args):
     Do major steps to move the database.
     """
 
-    tables = get_tables_list(debug=args.debug, from_glacents=args.from_Glacier_entities,
+    tables = get_tables_list(debug=args.debug, from_glacents=args.From_glacier_entities,
              to_glacents=args.To_glacier_entities)
 
     if tables is not None:
@@ -846,10 +873,10 @@ def do_db_move(args):
     dbh_old_cur = connect_to_db('old')
     dbh_new_cur = connect_to_db('new')
 
-    # Do sanity check if option from_Glacier_entities is True
-    if args.from_Glacier_entities:
+    # Do sanity check if option From_glacier_entities is True
+    if args.From_glacier_entities:
         if count_recs('reference_document', dbh_new_cur) == 0:
-            print('from_Glacier_entities flag specified but other tables are empty', file=sys.stderr)
+            print('From_glacier_entities flag specified but other tables are empty', file=sys.stderr)
             sys.exit(1)
 
     for T in tables.keys():
