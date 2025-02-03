@@ -76,13 +76,14 @@ def is_polygon_closed(ewkt_string):
 
 
 def main():
-    infile = 'glacier_entity_inserts.sql'
+    infile = 'northern_hemi.sql'
 
     with open(infile, 'r') as fh:
         for lineno, line in enumerate(fh):
-            print("Line", lineno)
-            if not is_polygon_closed(line):
-                print("Found unclosed polygon")
+            if 'INSERT INTO data.glacier_entities' in line:
+                print("Line", lineno)
+                if not is_polygon_closed(line):
+                    print("Found unclosed polygon")
 
 
 if __name__ == '__main__':
