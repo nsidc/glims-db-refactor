@@ -387,9 +387,9 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
 
     (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, dbh_new_cur, args)
 
-    print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
+    #print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
     move_sql =      glac_objs_to_sql_inserts(glac_bound_objs)
-    print("DEBUG: calling glac_objs_to_sql_inserts(misc_glac_objs)", file=sys.stderr)
+    #print("DEBUG: calling glac_objs_to_sql_inserts(misc_glac_objs)", file=sys.stderr)
     move_sql.extend(glac_objs_to_sql_inserts(misc_glac_objs))
 
     if not args.quiet:
@@ -460,7 +460,7 @@ def explode_multipolygons(gl_obj_list):
     for o in gl_obj_list:
         if type(o) is Glacier_entity and o.sgeom is not None:
             if o.sgeom.geom_type.lower() == 'multipolygon':
-                print('   ===>', o.sgeom, file=sys.stderr)
+                #print('   ===>', o.sgeom, file=sys.stderr)
                 temp = list(o)
                 done = False
                 while not done:
@@ -581,8 +581,6 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             # Give each part a new identity (gid, aid, etc) and put nunataks in
             # boundary polygon as holes.
 
-            #print("parts now is:", parts, file=sys.stderr)
-
             for p in parts:
 
                 if not p.sgeom.is_valid:
@@ -616,17 +614,13 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
 
                 rocks_to_add = []
                 for n in explode_multipolygons([rocks_by_glac_id[gid]]):
-                    print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
+                    #print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
                     n_fixed = make_valid_if_possible(n)
-                    print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
+                    #print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
                     if n_fixed.sgeom is None:
                         print("Found unfixable rock outline. Skipping.", file=sys.stderr)
                         continue
                     if p.contains(n_fixed):
-                        # DEBUG
-                        if gid == 'G290374E54532S':
-                            print('n: ', n_fixed, file=sys.stderr)
-                            print('n geom: ', n_fixed.sgeom, file=sys.stderr)
                         rocks_to_add.append(n_fixed)
 
                 p_ext_coords = p.sgeom.exterior.coords
