@@ -288,7 +288,7 @@ def assign_correct_gid(p, bounds_by_glac_id, processed_single_polys):
     '''
 
     # Previous approach:
-    return get_new_gid(p, bounds_by_glac_id, used_glacier_ids)
+    return get_new_gid(p, bounds_by_glac_id, processed_single_polys)
 
 
 def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
@@ -418,6 +418,9 @@ def make_valid_poly_if_possible(poly):
 
     #buffed_poly  = shg.polygon.orient(poly.buffer(0.0))
     buffed_poly  = poly.buffer(0.0)
+    if buffed_poly.to_wkt().strip().lower().startswith('multi'):
+        # Likely complicated (and spurious) rocks; just skip.
+        return None
     if buffed_poly.is_valid:
         return buffed_poly
     else:
@@ -455,10 +458,21 @@ def explode_multipolygons(gl_obj_list):
     parts = []
 
     for o in gl_obj_list:
-        if type(o) is Glacier_entity and o.sgeom.geom_type.lower() == 'multipolygon':
-            parts.extend(list(o))
-        elif type(o) is Glacier_entity and o.sgeom.geom_type.lower().startswith('polygon'):
-            parts.append(o)
+        if type(o) is Glacier_entity and o.sgeom is not None:
+            if o.sgeom.geom_type.lower() == 'multipolygon':
+                print('   ===>', o.sgeom, file=sys.stderr)
+                temp = list(o)
+                done = False
+                while not done:
+                    done = True
+                    for i, e in enumerate(temp):
+                        if e.sgeom.geom_type.lower().startswith('multi'):
+                            print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
+                            temp[i:i+1] = list(e)
+                            done = False
+                parts.extend(temp)
+            elif o.sgeom.geom_type.lower().startswith('polygon'):
+                parts.append(o)
         elif type(o) is list:
             parts.extend(explode_multipolygons(o))
 
@@ -572,9 +586,9 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             for p in parts:
 
                 if not p.sgeom.is_valid:
-                    print(f"glac_bound poly {p.as_tuple} is not valid", file=sys.stderr)
                     p = make_valid_if_possible(p)
-                    if p is None:
+                    if p.sgeom is None:
+                        print(f"glac_bound poly {p.as_tuple} is not valid. Skipping.", file=sys.stderr)
                         continue
 
                 old_gid = p.gid
@@ -601,13 +615,25 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                 used_glacier_ids[new_gid] = 1
 
                 rocks_to_add = []
-                for n in explode_multipolygons(rocks_by_glac_id[gid]):
-                    if p.contains(n):
-                        rocks_to_add.append(n)
+                for n in explode_multipolygons([rocks_by_glac_id[gid]]):
+                    print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
+                    n_fixed = make_valid_if_possible(n)
+                    print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
+                    if n_fixed.sgeom is None:
+                        print("Found unfixable rock outline. Skipping.", file=sys.stderr)
+                        continue
+                    if p.contains(n_fixed):
+                        # DEBUG
+                        if gid == 'G290374E54532S':
+                            print('n: ', n_fixed, file=sys.stderr)
+                            print('n geom: ', n_fixed.sgeom, file=sys.stderr)
+                        rocks_to_add.append(n_fixed)
 
                 p_ext_coords = p.sgeom.exterior.coords
                 new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
                 p.sgeom = make_valid_if_possible(new_p_geom)
+                if p.sgeom is None:
+                    continue
 
                 #print("In parts loop: appending ", p, file=sys.stderr)
                 add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
@@ -632,7 +658,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             # Single glac_bound polygon. Find any intrnl_rock polys
             bound_obj = gl_obj_list[0]
             if gid in rocks_by_glac_id:
-                rock_objs = explode_multipolygons(rocks_by_glac_id[gid])
+                rock_objs = explode_multipolygons([rocks_by_glac_id[gid]])
                 # Check for containment...
                 int_rocks = []
                 for r in rock_objs:

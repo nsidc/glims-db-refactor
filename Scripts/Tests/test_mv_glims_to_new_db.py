@@ -304,7 +304,8 @@ def test_get_new_aid_generator():
 def test_get_new_gid_new():
     glac_bound_obj = _make_Glacier_entity_object()
     fake_existing_polys = {'G123456E12345N': 'unused value', 'G123456E12345S': 'unused value 2'}
-    new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys)
+    used_glacier_ids = list(fake_existing_polys.keys())
+    new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys, used_glacier_ids)
     print('new_gid = ', new_gid)
     assert(new_gid == 'G001000E01000N')
 
@@ -314,7 +315,8 @@ def test_get_new_gid_dupe_in_dict():
     fake_existing_polys = {'G001000E01000N': 'unused value', 'G123456E12345S': 'unused value 2'}
     neighbors = ['G000999E00999N', 'G001000E00999N', 'G001001E00999N', 'G000999E01000N', 'G001001E01000N', 'G000999E01001N', 'G001000E01001N', 'G001001E01001N']
 
-    new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys)
+    used_glacier_ids = list(fake_existing_polys.keys())
+    new_gid = mv.get_new_gid(glac_bound_obj, fake_existing_polys, used_glacier_ids)
     print('new_gid = ', new_gid)
     assert(new_gid in neighbors)
 
