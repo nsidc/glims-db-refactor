@@ -4,8 +4,19 @@
 # iceland_exp_rocks_id_tracking.sql.  This script analyzes the glacier IDs to
 # be inserted into glacier_static in that file, to make sure they are unique.
 
+if [ "$1" = "" ] ; then
+    echo "Usage:  $0 <sql_filename>"
+    exit 1
+fi
+
+infile=$1
+inserts='glstatic_inserts.sql'
+gid_plus_file='gids_plus_cruft.txt'
+gid_file='gids_only.txt'
+
 # Extract all the INSERT statements for the glacier_static table
-grep 'INSERT INTO data.glacier_static' iceland_exp_rocks_id_tracking.sql > glstatic_inserts.sql
+echo "Extracting glacier_static INSERT statements from $infile ..."
+grep 'INSERT INTO data.glacier_static' $infile > $inserts
 
 # Extract the actual IDs to be inserted into the glacier_static.glacier_id
 # field, which is done in one of two ways:  From the bulk copy of the table
@@ -13,20 +24,21 @@ grep 'INSERT INTO data.glacier_static' iceland_exp_rocks_id_tracking.sql > glsta
 # ("SELECT 'G...").  Two extra characters are grabbed because there are many
 # retired IDs in the old GLIMS database, which end in _R.
 
+echo "Extracting glacier IDs ..."
 grep -o                                 \
         -e "SELECT 'G......E........'"    \
         -e "VALUES ('G......E........"    \
-        glstatic_inserts.sql > gids_plus_cruft.txt
+        $inserts > $gid_plus_file
 
 # Get rid of the retired IDs and then pull out the remaining IDs, getting rid
 # of the cruft.
 
-grep -v _R gids_plus_cruft.txt | grep -o 'G......E......' > gids_only.txt
+grep -v _R $gid_plus_file | grep -o 'G......E......' > $gid_file
 
 # The remaining list of IDs to be inserted *should* be unique.  Check that.
 
 echo -n "Number of duplicated IDs going into glacier_static:  "
-sort gids_only.txt | uniq -dc | wc -l
+sort $gid_file | uniq -dc | wc -l
 
-#read -n 1 -s -r -p "Press any key to see the list."
-#sort gids_only.txt | uniq -dc | less
+# Clean up temp files
+rm $inserts $gid_plus_file $gid_file
