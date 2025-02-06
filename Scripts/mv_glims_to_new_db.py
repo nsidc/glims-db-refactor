@@ -530,6 +530,18 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     3. Loop through all the non-glac_bound entities (debris_cov, lakes...) and
        assign IDs via steps 2A and 2B above (via overlap relationships).
 
+    How will this work to run over different regions?  In theory, there will be
+    no overlapping glacier outlines that are in different regions.  But do any
+    multi-polygons span regions??  How to find out?
+
+    The last two tables, after the glacier_entities, are the glacier_countries
+    and glacier_map_info tables.  Will these have to be reconstructed?  And
+    what about the glacier_image_info table?  A row-by-row copy of these will
+    not pick up the new glacier IDs from the multi-polygons.
+
+    I think I need a mapping of old_glacier_id --> new_glacier_id_list (from
+    exploding multi-polygons), and then assign the same images and maps to the
+    new as were connected to the old.
 
     '''
 
@@ -574,119 +586,150 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     # Start dictionary (for fast access) of already-used GLIMS glacier IDs to avoid collisions
     used_glacier_ids = dict(zip(bounds_by_glac_id.keys(), [1]*len(bounds_by_glac_id.keys())))
 
-    # Create a new structure for storing all the already-processed single polygon objects
-    # HERE
-
     bound_objs_to_ingest = []  # single item or list from multi-polygons
 
+    # Separate glac_bound entities into singles and non-singles
+
+    singles = defaultdict(list)
+    non_singles = defaultdict(list)
+
     for gid, gl_obj_list in bounds_by_glac_id.items():
-
-        #print("In glac_bound loop.  gl_obj_list:", gl_obj_list, file=sys.stderr)
-
         if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type.lower() == 'multipolygon':
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
-
-            # Put all boundary parts into a list of single polygons, even if
-            # objects in gl_obj_list are multipolygons. (list(multipolygon) puts
-            # the parts as single polygons into a list).  If the part is
-            # a single polygon, then the "except" branch is run.
-
-            parts = explode_multipolygons(gl_obj_list)
-
-            # Give each part a new identity (gid, aid, etc) and put nunataks in
-            # boundary polygon as holes.
-
-            for p in parts:
-
-                if not p.sgeom.is_valid:
-                    p = make_valid_if_possible(p)
-                    if p.sgeom is None:
-                        print(f"glac_bound poly {p.as_tuple} is not valid. Skipping.", file=sys.stderr)
-                        continue
-
-                old_gid = p.gid
-                new_gid = assign_correct_gid(p, bounds_by_glac_id, used_glacier_ids)
-                #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
-
-                if new_gid is None:
-                    print(f"Topology seems wrong for glac_bound poly: {p}. Skipping.", file=sys.stderr)
-                    continue
-                if new_gid == 'no_candidates':
-                    print(f"No candidate IDs were found for glac_bound poly: {p}. Exiting.", file=sys.stderr)
-                    sys.exit(1)
-
-                old_aid = p.aid
-                new_aid = next(get_new_aid)
-                #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
-
-                rtn_code = write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
-                #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
-
-                p.gid = new_gid
-                p.aid = new_aid
-
-                used_glacier_ids[new_gid] = 1
-
-                rocks_to_add = []
-                for n in explode_multipolygons([rocks_by_glac_id[gid]]):
-                    #print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
-                    n_fixed = make_valid_if_possible(n)
-                    #print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
-                    if n_fixed.sgeom is None:
-                        print("Found unfixable rock outline. Skipping.", file=sys.stderr)
-                        continue
-                    if p.contains(n_fixed):
-                        rocks_to_add.append(n_fixed)
-
-                p_ext_coords = p.sgeom.exterior.coords
-                new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
-                p.sgeom = make_valid_if_possible(new_p_geom)
-                if p.sgeom is None:
-                    continue
-
-                #print("In parts loop: appending ", p, file=sys.stderr)
-                add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
-                bound_objs_to_ingest.append(p)
-
-                # Adjust IDs of misc entities contained by changed glac_bound entities
-                for m in misc_entities_by_glac_id[gid]:
-                    if not m.sgeom.is_valid:
-                        print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
-                        continue
-
-                    try:
-                        if p.touches(m) or p.contains(m):
-                            m.gid = new_gid
-                            m.aid = new_aid
-                    except:
-                        pass
-
-            # Remove gid entry from bounds_by_glac_id ?
-
+            non_singles[gid].append(gl_obj_list)
         else:
-            # Single glac_bound polygon. Find any intrnl_rock polys
-            bound_obj = gl_obj_list[0]
-            if gid in rocks_by_glac_id:
-                rock_objs = explode_multipolygons([rocks_by_glac_id[gid]])
-                # Check for containment...
-                int_rocks = []
-                for r in rock_objs:
-                    if not bound_obj.contains(r):
-                        orphan_rocks_by_glac_id[gid].append(r)
-                    else:
-                        int_rocks.append(r)
+            singles[gid].append(gl_obj_list)
 
-                # Assemble holey polygon
-                holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
-                bound_obj.sgeom = holey_geom
+    # Process the single polygons.  This routine returns a structure of all the
+    # already-processed single polygon objects. Dictionary keyed by
+    # analysis_id?  glacier_id?  Singles created from exploding multi-polygons
+    # will be added to this structure.
 
-            bound_objs_to_ingest.append(bound_obj)
+    processed_singles = process_single_entities(singles, rocks_by_glac_id)
+    
+    processed_singles = process_nonsingle_entities(non_singles, processed_singles)
+
+    process_rocks(rocks_by_glac_id, processed_singles)
+
+    process_others(misc_entities_by_glac_id, processed_singles)
+
+
+def process_others(...):
 
     misc_obj_as_list = []
     for gid in misc_entities_by_glac_id:
         misc_obj_as_list.extend(misc_entities_by_glac_id[gid])
 
-    return (bound_objs_to_ingest, misc_obj_as_list)
+
+def process_nonsingle_entities(non_singles, processed_singles):
+
+    for gid, gl_obj_list in non_singles.items():
+
+        # Break all boundary parts into a list of single polygons.
+
+        parts = explode_multipolygons(gl_obj_list)
+
+        # If a part overlaps a single outline in processed_singles, it should
+        # be given that glacier ID.
+
+        # Otherwise, give the part a new identity (gid, aid, etc) and put nunataks in
+        # boundary polygon as holes.
+
+NOT DONE
+
+        for p in parts:
+
+            if not p.sgeom.is_valid:
+                p = make_valid_if_possible(p)
+                if p.sgeom is None:
+                    print(f"glac_bound poly {p.as_tuple} is not valid. Skipping.", file=sys.stderr)
+                    continue
+
+            old_gid = p.gid
+            new_gid = assign_correct_gid(p, bounds_by_glac_id, used_glacier_ids)
+            #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
+
+            if new_gid is None:
+                print(f"Topology seems wrong for glac_bound poly: {p}. Skipping.", file=sys.stderr)
+                continue
+            if new_gid == 'no_candidates':
+                print(f"No candidate IDs were found for glac_bound poly: {p}. Exiting.", file=sys.stderr)
+                sys.exit(1)
+
+            old_aid = p.aid
+            new_aid = next(get_new_aid)
+            #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
+
+            rtn_code = write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
+            #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
+
+            p.gid = new_gid
+            p.aid = new_aid
+
+            used_glacier_ids[new_gid] = 1
+
+            rocks_to_add = []
+            for n in explode_multipolygons([rocks_by_glac_id[gid]]):
+                #print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
+                n_fixed = make_valid_if_possible(n)
+                #print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
+                if n_fixed.sgeom is None:
+                    print("Found unfixable rock outline. Skipping.", file=sys.stderr)
+                    continue
+                if p.contains(n_fixed):
+                    rocks_to_add.append(n_fixed)
+
+            p_ext_coords = p.sgeom.exterior.coords
+            new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
+            p.sgeom = make_valid_if_possible(new_p_geom)
+            if p.sgeom is None:
+                continue
+
+            #print("In parts loop: appending ", p, file=sys.stderr)
+            add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
+            bound_objs_to_ingest.append(p)
+
+            # Adjust IDs of misc entities contained by changed glac_bound entities
+            for m in misc_entities_by_glac_id[gid]:
+                if not m.sgeom.is_valid:
+                    print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
+                    continue
+
+                try:
+                    if p.touches(m) or p.contains(m):
+                        m.gid = new_gid
+                        m.aid = new_aid
+                except:
+                    pass
+
+        # Remove gid entry from bounds_by_glac_id ?
+
+
+def process_single_entities(singles, rocks_by_glac_id):
+
+    bound_objs_to_ingest = []
+    for gid, bound_obj in singles.items():
+        if gid in rocks_by_glac_id:
+            rock_objs = explode_multipolygons([rocks_by_glac_id[gid]])
+            # Check for containment...
+            int_rocks = []
+            for r in rock_objs:
+                # Skip rocks with different analysis_id values.
+                if r.aid != bound_obj.aid:
+                    continue
+
+                if not bound_obj.contains(r):
+                    orphan_rocks_by_glac_id[gid].append(r)
+                else:
+                    int_rocks.append(r)
+
+            # Assemble holey polygon
+            holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
+            bound_obj.sgeom = holey_geom
+
+        bound_objs_to_ingest.append(bound_obj)
+
+    return (bound_objs_to_ingest)
 
 
 def write_new_to_glacier_static(gl_obj, old_gid, new_gid, dbh_new_cur, args):
