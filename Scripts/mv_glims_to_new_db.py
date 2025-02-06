@@ -498,24 +498,39 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
          basin_bound |      9
         (6 rows)
 
-    Here are the needed actions by line_type:
+    Here are the needed actions:
 
-    - pro_lake, supra_lake, basin_bound, debris_cov:  Simply copy as-is to the
-      new "glacier_entities" table.
+    All single polygons (for a given region but including all as-of times) must
+    be done first, before any multipolygons. Thus, I must do the move region by
+    region, including all outlines (for all times) in each region.
 
-    - glac_bound and intrnl_rock:
+    0. intrnl_rock polygons and glac_bound polygons that belong together share
+       an analysis_id.  Therefore, I should first combine them into holey
+       polygons before splitting up multi-polygons.  Does that do the right
+       thing? (I don't think so ... ??)
 
-        1) need to check that there aren't multiple glac_bound polygons for
-           a given glacier.  In that case, we need to:
+       What about retired records?  Just copy those to new DB.
 
-            a) break out into separate glac_polygons and assign new glacier IDs
-            b) figure out which intrnl_rock polygons go with which glac_bound polygons
-                - For each intrnl_rock polygon, check each glac_bound poly with
-                  matching glac_id to see if it contains,
+    1. Process all single (non-multipolygon) glac_bounds first.  Store list of
+       these --> "processed_singles".  Don't change their IDs at all.  Convert
+       intrnl_rock polygons with the same ANALYSIS IDs to holes.
 
-                - If none found, check all records.
+    2. Process all multipolygon glac_bounds next.  When breaking them apart,
+       must assign new glacier IDs to the pieces.  Do this by:
 
-        2) need to be combined so that intrnl_rock polygons become "holes" in the associated glac_bound polygon;
+        A. Does the piece overlap any single polygon in processed_singles?  If
+           so, assign ID from that single, or from the single with the most
+           overlap.
+
+        B. If no overlap, assign new ID from centroid, ensuring no collisions
+           with IDs in processed_singles.
+
+        C. Add record to glacier_static with the new glacier ID.
+
+    3. Loop through all the non-glac_bound entities (debris_cov, lakes...) and
+       assign IDs via steps 2A and 2B above (via overlap relationships).
+
+
     '''
 
     bounds_by_glac_id = defaultdict(list)
