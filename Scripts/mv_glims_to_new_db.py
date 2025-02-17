@@ -272,12 +272,14 @@ def next_aid_generator():
         next_aid += 1
 
 
-def assign_correct_gid(p, bounds_by_glac_id, processed_single_polys):
+def assign_correct_gid(p, processed_single_polys):
     '''
     assign_correct_gid -- assign a glacier ID to a new part, taking into
                         account overlap relationships with other glaciers
 
-    Case:  Two overlapping multi-polygons, both of which should be broken up,
+    Case 1:  New part overlaps with no other polygons in processed_single_polys
+
+    Case 2:  Two overlapping multi-polygons, both of which should be broken up,
     but the overlapping pieces should get the same GLIMS glacier IDs.
 
     The overlap check needs to be done with all glaciers in the region, not
@@ -545,10 +547,10 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
 
     '''
 
-    bounds_by_glac_id = defaultdict(list)
-    rocks_by_glac_id = defaultdict(list)
-    orphan_rocks_by_glac_id = defaultdict(list)
-    misc_entities_by_glac_id = defaultdict(list)
+    bounds_by_aid = defaultdict(list)
+    rocks_by_aid = defaultdict(list)
+    orphan_rocks_by_aid = defaultdict(list)
+    misc_entities_by_aid = defaultdict(list)
 
     get_new_aid = next_aid_generator()
 
@@ -565,65 +567,84 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
                     e = make_valid_if_possible(e)
                     if e is not None:
                         temp_objs.append(e)
-                misc_entities_by_glac_id[gl_obj.gid].extend(temp_objs)
+                misc_entities_by_aid[gl_obj.aid].extend(temp_objs)
             except:
-                misc_entities_by_glac_id[gl_obj.gid].append(gl_obj)
+                misc_entities_by_aid[gl_obj.aid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
-            bounds_by_glac_id[gl_obj.gid].append(gl_obj)
+            bounds_by_aid[gl_obj.aid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
-            rocks_by_glac_id[gl_obj.gid].append(gl_obj)
+            rocks_by_aid[gl_obj.aid].append(gl_obj)
         else:
             print("Warning: found unknown line_type: ", gl_obj.line_type, file=sys.stderr)
 
     if not args.quiet:
         print("Num entities of type (glac_bound, intrnl_rock, misc):",
-               len(bounds_by_glac_id), len(rocks_by_glac_id), len(misc_entities_by_glac_id), file=sys.stderr)
+               len(bounds_by_aid), len(rocks_by_aid), len(misc_entities_by_aid), file=sys.stderr)
 
     # Assemble glac_bound polys with holes
     if not args.quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
     # Start dictionary (for fast access) of already-used GLIMS glacier IDs to avoid collisions
-    used_glacier_ids = dict(zip(bounds_by_glac_id.keys(), [1]*len(bounds_by_glac_id.keys())))
-
-    bound_objs_to_ingest = []  # single item or list from multi-polygons
+    used_glacier_ids = dict(zip(bounds_by_aid.keys(), [1]*len(bounds_by_aid.keys())))
 
     # Separate glac_bound entities into singles and non-singles
 
     singles = defaultdict(list)
     non_singles = defaultdict(list)
 
-    for gid, gl_obj_list in bounds_by_glac_id.items():
+    for aid, gl_obj_list in bounds_by_aid.items():
         if len(gl_obj_list) > 1 or gl_obj_list[0].sgeom.geom_type.lower() == 'multipolygon':
-            print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {gid} (or is multipolygon)", file=sys.stderr)
-            non_singles[gid].append(gl_obj_list)
+            print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {aid} (or is multipolygon)", file=sys.stderr)
+            non_singles[aid].append(gl_obj_list)
         else:
-            singles[gid].append(gl_obj_list)
+            singles[aid].append(gl_obj_list)
 
     # Process the single polygons.  This routine returns a structure of all the
     # already-processed single polygon objects. Dictionary keyed by
     # analysis_id?  glacier_id?  Singles created from exploding multi-polygons
     # will be added to this structure.
 
-    processed_singles = process_single_entities(singles, rocks_by_glac_id)
-    
-    processed_singles = process_nonsingle_entities(non_singles, processed_singles)
+    processed_singles = process_single_entities(singles, rocks_by_aid)
 
-    process_rocks(rocks_by_glac_id, processed_singles)
+    # Create single polygons from multi-polygons and add them to the list of
+    # single objects.
 
-    process_others(misc_entities_by_glac_id, processed_singles)
+    processed_singles = process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid)
+
+    # Adjust the IDs of the miscellaneous entities as necessary.  "Necessary"
+    # means that they share an analysis ID with a multipolygon that was broken
+    # up.
+
+    all_entities = process_others(misc_entities_by_aid, processed_singles)
+
+    # return list of all objects for SQL creation
+    return all_entities
 
 
-def process_others(...):
+def process_others(misc_entities_by_aid, processed_singles):
+    ''' process_others -- Adjust IDs of misc entities contained by changed
+        glac_bound entities, and append to the growing list of processed entities.
+    '''
 
-    misc_obj_as_list = []
-    for gid in misc_entities_by_glac_id:
-        misc_obj_as_list.extend(misc_entities_by_glac_id[gid])
+    # Go once through whole list of processed singles and look up misc entities by aid
+    for p in processed_singles:
+        if p.aid in misc_entities_by_aid:
+            for m in misc_entities_by_aid[p.aid]:
+                if not m.sgeom.is_valid:
+                    print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
+                    continue
+                if p.touches(m) or p.contains(m):
+                    m.gid = p.gid
+                    m.aid = p.aid
+                    processed_singles.append(m)
+
+    return processed_singles
 
 
-def process_nonsingle_entities(non_singles, processed_singles):
+def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
 
-    for gid, gl_obj_list in non_singles.items():
+    for aid, gl_obj_list in non_singles.items():
 
         # Break all boundary parts into a list of single polygons.
 
@@ -632,10 +653,9 @@ def process_nonsingle_entities(non_singles, processed_singles):
         # If a part overlaps a single outline in processed_singles, it should
         # be given that glacier ID.
 
-        # Otherwise, give the part a new identity (gid, aid, etc) and put nunataks in
-        # boundary polygon as holes.
-
-NOT DONE
+        # Otherwise, give the part a new identity (gid, aid, etc).
+        
+        # Either way, put nunataks in boundary polygon as holes.
 
         for p in parts:
 
@@ -645,8 +665,8 @@ NOT DONE
                     print(f"glac_bound poly {p.as_tuple} is not valid. Skipping.", file=sys.stderr)
                     continue
 
-            old_gid = p.gid
-            new_gid = assign_correct_gid(p, bounds_by_glac_id, used_glacier_ids)
+            p.old_gid = p.gid
+HERE        new_gid = assign_correct_gid(p, processed_singles)
             #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
             if new_gid is None:
@@ -656,20 +676,18 @@ NOT DONE
                 print(f"No candidate IDs were found for glac_bound poly: {p}. Exiting.", file=sys.stderr)
                 sys.exit(1)
 
-            old_aid = p.aid
-            new_aid = next(get_new_aid)
+            p.gid = new_gid
+            p.old_aid = p.aid
+            p.aid = next(get_new_aid)
             #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
-            rtn_code = write_new_to_glacier_static(p, old_gid, new_gid, dbh_new_cur, args)
+            rtn_code = write_new_to_glacier_static(p, dbh_new_cur, args)
             #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
 
-            p.gid = new_gid
-            p.aid = new_aid
-
-            used_glacier_ids[new_gid] = 1
+            used_glacier_ids[p.gid] = 1
 
             rocks_to_add = []
-            for n in explode_multipolygons([rocks_by_glac_id[gid]]):
+            for n in explode_multipolygons([rocks_by_aid[p.old_aid]]):
                 #print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
                 n_fixed = make_valid_if_possible(n)
                 #print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
@@ -686,31 +704,18 @@ NOT DONE
                 continue
 
             #print("In parts loop: appending ", p, file=sys.stderr)
-            add_part_to_glacier_dynamic(p, old_aid, dbh_new_cur, args)
-            bound_objs_to_ingest.append(p)
-
-            # Adjust IDs of misc entities contained by changed glac_bound entities
-            for m in misc_entities_by_glac_id[gid]:
-                if not m.sgeom.is_valid:
-                    print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
-                    continue
-
-                try:
-                    if p.touches(m) or p.contains(m):
-                        m.gid = new_gid
-                        m.aid = new_aid
-                except:
-                    pass
-
+            add_part_to_glacier_dynamic(p, dbh_new_cur, args)
+            processed_singles.append(p)
         # Remove gid entry from bounds_by_glac_id ?
+    return processed_singles
 
 
-def process_single_entities(singles, rocks_by_glac_id):
+def process_single_entities(singles, rocks_by_aid):
 
     bound_objs_to_ingest = []
-    for gid, bound_obj in singles.items():
-        if gid in rocks_by_glac_id:
-            rock_objs = explode_multipolygons([rocks_by_glac_id[gid]])
+    for aid, bound_obj in singles.items():
+        if aid in rocks_by_aid:
+            rock_objs = explode_multipolygons([rocks_by_aid[aid]])
             # Check for containment...
             int_rocks = []
             for r in rock_objs:
@@ -718,21 +723,22 @@ def process_single_entities(singles, rocks_by_glac_id):
                 if r.aid != bound_obj.aid:
                     continue
 
-                if not bound_obj.contains(r):
-                    orphan_rocks_by_glac_id[gid].append(r)
-                else:
+                if bound_obj.contains(r):
                     int_rocks.append(r)
+                else:
+                    orphan_rocks_by_glac_id[gid].append(r)
 
             # Assemble holey polygon
-            holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
-            bound_obj.sgeom = holey_geom
+            if len(int_rocks) > 0:
+                holey_geom = Polygon(close_ring(list(bound_obj.sgeom.exterior.coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in int_rocks])
+                bound_obj.sgeom = holey_geom
 
         bound_objs_to_ingest.append(bound_obj)
 
     return (bound_objs_to_ingest)
 
 
-def write_new_to_glacier_static(gl_obj, old_gid, new_gid, dbh_new_cur, args):
+def write_new_to_glacier_static(gl_obj, dbh_new_cur, args):
     all_glacier_static_fields = [
         'glacier_id',
         'glacier_name',
@@ -754,12 +760,12 @@ def write_new_to_glacier_static(gl_obj, old_gid, new_gid, dbh_new_cur, args):
     # Add table name to field names.
     fields_to_copy_with_table = ['gs.' + e for e in fields_to_copy_from_old_rec]
 
-    sql = f"INSERT INTO data.glacier_static ( {','.join(all_glacier_static_fields)} ) SELECT '{new_gid}', {','.join(fields_to_copy_with_table)} FROM glacier_static gs WHERE gs.glacier_id='{old_gid}';"
+    sql = f"INSERT INTO data.glacier_static ( {','.join(all_glacier_static_fields)} ) SELECT '{gl_obj.gid}', {','.join(fields_to_copy_with_table)} FROM glacier_static gs WHERE gs.glacier_id='{gl_obj.old_gid}';"
     rtn_code = issue_sql(sql, dbh_new_cur, args)
     return rtn_code
 
 
-def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
+def add_part_to_glacier_dynamic(gl_obj, dbh_new_cur, args):
     ''' When multipolygons are converted to multiple single polygons, they need
         new records in the glacier_dynamic table.
     '''
@@ -830,7 +836,7 @@ def add_part_to_glacier_dynamic(gl_obj, old_aid, dbh_new_cur, args):
     # Add table name to field names.
     fields_to_copy_with_table = ['gd.' + e for e in fields_to_copy_from_old_rec]
 
-    sql = f"INSERT INTO data.glacier_dynamic ( {','.join(all_glacier_dynamic_fields)} ) SELECT {gl_obj.aid}, '{gl_obj.gid}', {','.join(fields_to_copy_with_table)} FROM glacier_dynamic gd WHERE gd.analysis_id={old_aid};"
+    sql = f"INSERT INTO data.glacier_dynamic ( {','.join(all_glacier_dynamic_fields)} ) SELECT {gl_obj.aid}, '{gl_obj.gid}', {','.join(fields_to_copy_with_table)} FROM glacier_dynamic gd WHERE gd.analysis_id={gl_obj.old_aid};"
 
     rtn_code = issue_sql(sql, dbh_new_cur, args)
     return rtn_code

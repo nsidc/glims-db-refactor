@@ -12,6 +12,10 @@ class Glacier_entity(object):
         #self.poly_ewkt = tup[3]
         self.sgeom = loads(tup[3].split(';')[1])
 
+        self.from_multi = False
+        self.old_gid = None
+        self.old_aid = None
+
     def as_tuple(self):
         rtn = (self.gid, self.aid, self.line_type, self.as_ewkt_with_srid())
         return rtn
