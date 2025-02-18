@@ -37,6 +37,15 @@ class Glacier_entity(object):
         ''' input:  another Glacier_entity object '''
         return self.sgeom.touches(o.sgeom)
 
+    def intersects(self, o):
+        return self.sgeom.intersects(o.sgeom)
+
+    def max_overlap_frac(self, o):
+        self_area = self.sgeom.area
+        o_area = o.sgeom.area
+        intersect_area = self.sgeom.intersection(o.sgeom).area
+        return max(intersect_area/self_area, intersect_area/o_area)
+
     def __repr__(self):
         return f"({self.gid}, {self.aid}, {self.line_type})"
 

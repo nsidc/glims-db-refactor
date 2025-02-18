@@ -272,12 +272,12 @@ def next_aid_generator():
         next_aid += 1
 
 
-def assign_correct_gid(p, processed_single_polys):
+def assign_correct_gid(p, processed_singles):
     '''
     assign_correct_gid -- assign a glacier ID to a new part, taking into
                         account overlap relationships with other glaciers
 
-    Case 1:  New part overlaps with no other polygons in processed_single_polys
+    Case 1:  New part overlaps with no other polygons in processed_singles
 
     Case 2:  Two overlapping multi-polygons, both of which should be broken up,
     but the overlapping pieces should get the same GLIMS glacier IDs.
@@ -288,12 +288,24 @@ def assign_correct_gid(p, processed_single_polys):
     prohibitive, O(N2) I think.
 
     '''
+    best_overlap_frac = 0.0
+    best_overlap_gid = ''
+    for single in processed_singles:
+        if single.intersects(p):
+            ov_frac = single.max_overlap_frac(p)
+            if ov_frac > best_overlap_frac:
+                best_overlap_frac = ov_frac
+                best_overlap_gid = single.gid
 
-    # Previous approach:
-    return get_new_gid(p, bounds_by_glac_id, processed_single_polys)
+    if best_overlap_frac == 0.0:
+        # Create new ID here
+        new_gid = make_new_gid(p, processed_singles)
+        return new_gid
+    else:
+        return best_overlap_gid
 
 
-def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
+def make_new_gid(p, processed_singles):
     '''
     Calculate a new GLIMS glacier ID for this object, making sure it doesn't
     already exist in the list of glaciers in this run.  Make sure it's also not
@@ -301,22 +313,22 @@ def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
 
     Input:
         - a glac_bound record (with outline)
-        - dict of all glac_bound objects, keyed by glacier ID
+        - dict? of all processed single outline objects, keyed by glacier ID??
 
     Output:
         the new GLIMS glacier ID
     '''
 
-    #print("DEBUG: get_new_gid: input p is ", p, file=sys.stderr)
+    #print("DEBUG: make_new_gid: input p is ", p, file=sys.stderr)
 
     try:
         ppoly = shg.polygon.orient(shg.shape(p.sgeom))
         center = ppoly.representative_point()
     except:
-        #print("DEBUG: get_new_gid: shape or representative_point failed", file=sys.stderr)
+        #print("DEBUG: make_new_gid: shape or representative_point failed", file=sys.stderr)
         return None
 
-    #print("DEBUG: get_new_gid: center = ", center, "type is ", type(center), file=sys.stderr)
+    #print("DEBUG: make_new_gid: center = ", center, "type is ", type(center), file=sys.stderr)
 
     if center.is_empty:
         return None
@@ -325,20 +337,21 @@ def get_new_gid(p, bounds_by_glac_id, used_glacier_ids):
     neighs = GLIMS_ID.neighbors(rep_point_id)
 
     for id_to_try in [rep_point_id] + neighs:
-        if is_good_new_id(id_to_try, used_glacier_ids):
-            #print("   --> get_new_gid: returning ", id_to_try, file=sys.stderr)
+        if is_good_new_id(id_to_try, processed_singles):
+            #print("   --> make_new_gid: returning ", id_to_try, file=sys.stderr)
             return id_to_try
 
     return 'no_candidates'
 
 
-def is_good_new_id(gid, used_glacier_ids):
+def is_good_new_id(gid, processed_singles):
     '''
-    Check candiate glacier ID for uniqueness: mustn't be in used_glacier_ids or in the database
+    Check candiate glacier ID for uniqueness: mustn't be in
+    processed_singles or in the database
     '''
 
     # Check bounds_by_glac_id and fail fast if not unique
-    if gid in used_glacier_ids:
+    if gid in [e.gid for e in processed_singles]:
         return False
 
     # Check db
@@ -585,9 +598,6 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     if not args.quiet:
         print('Looping through glac_bound objects', file=sys.stderr)
 
-    # Start dictionary (for fast access) of already-used GLIMS glacier IDs to avoid collisions
-    used_glacier_ids = dict(zip(bounds_by_aid.keys(), [1]*len(bounds_by_aid.keys())))
-
     # Separate glac_bound entities into singles and non-singles
 
     singles = defaultdict(list)
@@ -643,6 +653,10 @@ def process_others(misc_entities_by_aid, processed_singles):
 
 
 def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
+    '''
+    process_nonsingle_entities -- assign correct or create new glacier ID to
+    these multi-part polygon parts, and convert nunutak polys to holes....
+    '''
 
     for aid, gl_obj_list in non_singles.items():
 
@@ -659,6 +673,8 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
 
         for p in parts:
 
+            p.from_multi = True
+
             if not p.sgeom.is_valid:
                 p = make_valid_if_possible(p)
                 if p.sgeom is None:
@@ -666,7 +682,7 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
                     continue
 
             p.old_gid = p.gid
-HERE        new_gid = assign_correct_gid(p, processed_singles)
+            new_gid = assign_correct_gid(p, processed_singles)
             #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
             if new_gid is None:
@@ -682,9 +698,8 @@ HERE        new_gid = assign_correct_gid(p, processed_singles)
             #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
 
             rtn_code = write_new_to_glacier_static(p, dbh_new_cur, args)
+            # Do something with rtn_code?
             #del_from_glacier_static(gid)???  # Need to delete records from referencing tables too (first)
-
-            used_glacier_ids[p.gid] = 1
 
             rocks_to_add = []
             for n in explode_multipolygons([rocks_by_aid[p.old_aid]]):
