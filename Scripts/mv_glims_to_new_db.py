@@ -400,12 +400,10 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
     if not args.quiet:
         print(f"Selected {len(query_results)} records from table {T}", file=sys.stderr)
 
-    (glac_bound_objs, misc_glac_objs) = old_to_new_data_model(query_results, dbh_new_cur, args)
+    all_entities = old_to_new_data_model(query_results, dbh_new_cur, args)
 
     #print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
-    move_sql =      glac_objs_to_sql_inserts(glac_bound_objs)
-    #print("DEBUG: calling glac_objs_to_sql_inserts(misc_glac_objs)", file=sys.stderr)
-    move_sql.extend(glac_objs_to_sql_inserts(misc_glac_objs))
+    move_sql =      glac_objs_to_sql_inserts(all_entities)
 
     if not args.quiet:
         print(f"Issuing {len(move_sql)} SQL statements...", file=sys.stderr)
@@ -565,8 +563,6 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     orphan_rocks_by_aid = defaultdict(list)
     misc_entities_by_aid = defaultdict(list)
 
-    get_new_aid = next_aid_generator()
-
     # Bin the query results by entity type
     for row in query_results:
 
@@ -608,7 +604,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {aid} (or is multipolygon)", file=sys.stderr)
             non_singles[aid].append(gl_obj_list)
         else:
-            singles[aid].append(gl_obj_list)
+            singles[aid].extend(gl_obj_list)
 
     # Process the single polygons.  This routine returns a structure of all the
     # already-processed single polygon objects. Dictionary keyed by
@@ -620,7 +616,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     # Create single polygons from multi-polygons and add them to the list of
     # single objects.
 
-    processed_singles = process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid)
+    processed_singles = process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh_new_cur, args)
 
     # Adjust the IDs of the miscellaneous entities as necessary.  "Necessary"
     # means that they share an analysis ID with a multipolygon that was broken
@@ -652,11 +648,13 @@ def process_others(misc_entities_by_aid, processed_singles):
     return processed_singles
 
 
-def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
+def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh_new_cur, args):
     '''
     process_nonsingle_entities -- assign correct or create new glacier ID to
     these multi-part polygon parts, and convert nunutak polys to holes....
     '''
+
+    get_new_aid = next_aid_generator()
 
     for aid, gl_obj_list in non_singles.items():
 
@@ -727,13 +725,23 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid):
 
 def process_single_entities(singles, rocks_by_aid):
 
+    print("process_single_entities: singles is", singles, file=sys.stderr)
+
     bound_objs_to_ingest = []
-    for aid, bound_obj in singles.items():
+    for aid, bound_obj_list in singles.items():
+        if len(bound_obj_list) > 1:
+            print("Multi-polygon found in singles list. Exiting.", file=sys.stderr)
+            sys.exit(1)
+        bound_obj = bound_obj_list[0]
         if aid in rocks_by_aid:
             rock_objs = explode_multipolygons([rocks_by_aid[aid]])
             # Check for containment...
             int_rocks = []
             for r in rock_objs:
+                if type(r) is list:
+                    print("Why is this rock obj a list??", r, file=sys.stderr)
+                if type(bound_obj) is list:
+                    print("Why is this bound_obj a list??", bound_obj, file=sys.stderr)
                 # Skip rocks with different analysis_id values.
                 if r.aid != bound_obj.aid:
                     continue
@@ -741,7 +749,7 @@ def process_single_entities(singles, rocks_by_aid):
                 if bound_obj.contains(r):
                     int_rocks.append(r)
                 else:
-                    orphan_rocks_by_glac_id[gid].append(r)
+                    orphan_rocks_by_glac_id[aid].append(r)
 
             # Assemble holey polygon
             if len(int_rocks) > 0:
