@@ -26,7 +26,10 @@ class Glacier_entity(object):
         'SRID=4326;POLYGON ((0 0, 0 2, 2 2, 2 0, 0 0))'
 
         '''
-        rtn = ';'.join([self.srid, self.sgeom.wkt])
+        if self.sgeom is not None:
+            rtn = ';'.join([self.srid, self.sgeom.wkt])
+        else:
+            rtn = 'None_geom'
         return rtn
 
     def contains(self, o):

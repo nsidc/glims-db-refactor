@@ -291,11 +291,15 @@ def assign_correct_gid(p, processed_singles):
     best_overlap_frac = 0.0
     best_overlap_gid = ''
     for single in processed_singles:
-        if single.intersects(p):
-            ov_frac = single.max_overlap_frac(p)
-            if ov_frac > best_overlap_frac:
-                best_overlap_frac = ov_frac
-                best_overlap_gid = single.gid
+        try:
+            if single.intersects(p):
+                ov_frac = single.max_overlap_frac(p)
+                if ov_frac > best_overlap_frac:
+                    best_overlap_frac = ov_frac
+                    best_overlap_gid = single.gid
+        except:
+            print(f"assign_correct_gid: intersection failed. Returning None for gid.", file=sys.stderr)
+            return None
 
     if best_overlap_frac == 0.0:
         # Create new ID here
@@ -560,7 +564,6 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
 
     bounds_by_aid = defaultdict(list)
     rocks_by_aid = defaultdict(list)
-    orphan_rocks_by_aid = defaultdict(list)
     misc_entities_by_aid = defaultdict(list)
 
     # Bin the query results by entity type
@@ -638,7 +641,7 @@ def process_others(misc_entities_by_aid, processed_singles):
         if p.aid in misc_entities_by_aid:
             for m in misc_entities_by_aid[p.aid]:
                 if not m.sgeom.is_valid:
-                    print(f"misc poly {m.as_tuple} is not valid", file=sys.stderr)
+                    print(f"misc poly {m.as_tuple()} is not valid", file=sys.stderr)
                     continue
                 if p.touches(m) or p.contains(m):
                     m.gid = p.gid
@@ -676,7 +679,7 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
             if not p.sgeom.is_valid:
                 p = make_valid_if_possible(p)
                 if p.sgeom is None:
-                    print(f"glac_bound poly {p.as_tuple} is not valid. Skipping.", file=sys.stderr)
+                    print(f"glac_bound poly {p.as_tuple()} is not valid. Skipping.", file=sys.stderr)
                     continue
 
             p.old_gid = p.gid
@@ -725,9 +728,10 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
 
 def process_single_entities(singles, rocks_by_aid):
 
-    print("process_single_entities: singles is", singles, file=sys.stderr)
+    #print("process_single_entities: singles is", singles, file=sys.stderr)
 
     bound_objs_to_ingest = []
+    orphan_rocks_by_aid = defaultdict(list)
     for aid, bound_obj_list in singles.items():
         if len(bound_obj_list) > 1:
             print("Multi-polygon found in singles list. Exiting.", file=sys.stderr)
@@ -738,10 +742,15 @@ def process_single_entities(singles, rocks_by_aid):
             # Check for containment...
             int_rocks = []
             for r in rock_objs:
+                if not r.sgeom.is_valid:
+                    print(f"Found invalid rock geom: {r}.  Skipping.", file=sys.stderr)
+                    continue
+
                 if type(r) is list:
                     print("Why is this rock obj a list??", r, file=sys.stderr)
                 if type(bound_obj) is list:
                     print("Why is this bound_obj a list??", bound_obj, file=sys.stderr)
+
                 # Skip rocks with different analysis_id values.
                 if r.aid != bound_obj.aid:
                     continue
@@ -749,7 +758,7 @@ def process_single_entities(singles, rocks_by_aid):
                 if bound_obj.contains(r):
                     int_rocks.append(r)
                 else:
-                    orphan_rocks_by_glac_id[aid].append(r)
+                    orphan_rocks_by_aid[aid].append(r)
 
             # Assemble holey polygon
             if len(int_rocks) > 0:
@@ -758,6 +767,7 @@ def process_single_entities(singles, rocks_by_aid):
 
         bound_objs_to_ingest.append(bound_obj)
 
+    print(f"{len(orphan_rocks_by_aid)} orphan rocks found.", file=sys.stderr)
     return (bound_objs_to_ingest)
 
 
