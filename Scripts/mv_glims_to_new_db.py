@@ -515,41 +515,91 @@ def make_valid_if_possible(gl_obj):
         sys.exit(1)
 
 
-def explode_multipolygons(gl_obj_list):
+def explode_multipolygons(gl_obj_list, toplevel=True):
     ''' Input:  list of glacier objects, each of which might be
         a multi-polygon, or possibly a list of glacier objects, or a mixed list of
         single and multi-polygons.
 
         Output:  a list (parts) with all the parts exploded (flattened) into
-        a one-level list, possibly recursively.
+        a one-level list, possibly recursively.  Must be validated here since the
+        method make_valid creates GeometryCollection objects.
 
         Glacier_entity objects could be POLYGON or "POLYGON Z", hence the
         "startswith" below.
 
+        Two passes:
+
+            - Pass 1: flatten lists/multis into single list of glacier entity objects
+            - Pass 2: Check validity. make_valid creates multi-polygons, so for those,
+                      A. Convert to a list of single (now-valid) polygons,
+                      B. Discard (or save separately for later analysis) polygons with
+                         only 3 or 4 vertices.
     '''
+
+    # Pass 1
 
     parts = []
 
     for o in gl_obj_list:
         if type(o) is Glacier_entity and o.sgeom is not None:
-            if o.sgeom.geom_type.lower() == 'multipolygon':
-                #print('   ===>', o.sgeom, file=sys.stderr)
-                temp = list(o)
-                done = False
-                while not done:
-                    done = True
-                    for i, e in enumerate(temp):
-                        if e.sgeom.geom_type.lower().startswith('multi'):
-                            print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
-                            temp[i:i+1] = list(e)
-                            done = False
-                parts.extend(temp)
+            print("Found Glacier_entity w/ non-null geom", file=sys.stderr)
+            if o.sgeom.geom_type.lower().startswith('multi'):
+                print("  >Found multi-polygon geom, ", o, file=sys.stderr)
+                temp = list(o)  # list(multi) returns list of single OBJECTS
+                print("  list(o): ", temp, file=sys.stderr)
+
+                # Check for one level of nested multi-polygon collections
+                temp_list_of_lists = []
+                for e in temp:
+                    if e.sgeom.geom_type.lower().startswith('multi'):
+                        print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
+                        temp_list_of_lists.append(list(e))
+                    else:
+                        temp_list_of_lists.append(e)
+
+                parts.extend(flatten_recursive(temp_list_of_lists))
+
             elif o.sgeom.geom_type.lower().startswith('polygon'):
+                print("Found Polygon", file=sys.stderr)
                 parts.append(o)
         elif type(o) is list:
-            parts.extend(explode_multipolygons(o))
+            print("EXP:  Found List. Recursing.", file=sys.stderr)
+            parts.extend(explode_multipolygons(o, toplevel=False))
+        else:
+            pass # ???  Shouldn't get here.
 
-    return parts
+    if toplevel:
+
+        # Pass 2
+        print("EXP:  Pass 2", file=sys.stderr)
+
+        list_of_lists = []
+
+        for o in parts:
+            if not o.sgeom.is_valid:
+                valid_pieces = list(o.make_valid())
+                print("EXP:  valid_pieces, before: ", valid_pieces, file=sys.stderr)
+                # Discard polygons with fewer than 6 vertices (including duped first-last)
+                valid_pieces = [e for e in valid_pieces if len(e.sgeom.exterior.coords) > 5]
+                print("EXP:  valid_pieces, after: ", valid_pieces, file=sys.stderr)
+                list_of_lists.append(valid_pieces)
+            else:
+                list_of_lists.append(o)
+
+        return flatten_recursive(list_of_lists)
+
+    else:
+        return parts
+
+
+def flatten_recursive(nested_list):
+    flat_list = []
+    for item in nested_list:
+        if isinstance(item, list):
+            flat_list.extend(flatten_recursive(item))
+        else:
+            flat_list.append(item)
+    return flat_list
 
 
 def old_to_new_data_model(query_results, dbh_new_cur, args):
@@ -628,16 +678,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
         gl_obj = Glacier_entity(row)
 
         if gl_obj.line_type in ('pro_lake', 'supra_lake', 'basin_bound', 'debris_cov'):
-            try:
-                # Case:  geom is multipolygon
-                temp_objs = []
-                for e in list(gl_obj):
-                    e = make_valid_if_possible(e)
-                    if e is not None:
-                        temp_objs.append(e)
-                misc_entities_by_aid[gl_obj.aid].extend(temp_objs)
-            except:
-                misc_entities_by_aid[gl_obj.aid].append(gl_obj)
+            misc_entities_by_aid[gl_obj.aid].append(gl_obj)
         elif gl_obj.line_type == 'glac_bound':
             bounds_by_aid[gl_obj.aid].append(gl_obj)
         elif gl_obj.line_type == 'intrnl_rock':
@@ -663,7 +704,7 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
             print(f"Warning: Found ({len(gl_obj_list)}) glac_bound outlines for {aid} (or is multipolygon)", file=sys.stderr)
             non_singles[aid].append(gl_obj_list)
         else:
-            singles[aid].extend(gl_obj_list)
+            singles[aid].extend(gl_obj_list)    # or .append(gl_obj_list[0])
 
     # Process the single polygons.  This routine returns a structure of all the
     # already-processed single polygon objects. Dictionary keyed by
@@ -746,10 +787,8 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
             p.from_multi = True
 
             if not p.sgeom.is_valid:
-                p = make_valid_if_possible(p)
-                if p.sgeom is None:
-                    print(f"glac_bound poly {p.as_tuple()} is not valid. Skipping.", file=sys.stderr)
-                    continue
+                print(f"Shouldn't be here. glac_bound poly {p.as_tuple()} is not valid. Skipping.", file=sys.stderr)
+                continue
 
             p.old_gid = p.gid
             new_gid = assign_correct_gid(p, processed_singles, single_idx)
@@ -773,18 +812,12 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
 
             rocks_to_add = []
             for n in explode_multipolygons([rocks_by_aid[p.old_aid]]):
-                #print('DEBUG: n geom is', n.sgeom, file=sys.stderr)
-                n_fixed = make_valid_if_possible(n)
-                #print('   Post-make_valid: n_fixed geom is', n_fixed.sgeom, file=sys.stderr)
-                if n_fixed.sgeom is None:
-                    print("Found unfixable rock outline. Skipping.", file=sys.stderr)
-                    continue
-                if p.contains(n_fixed):
-                    rocks_to_add.append(n_fixed)
+                if p.contains(n):
+                    rocks_to_add.append(n)
 
             p_ext_coords = p.sgeom.exterior.coords
             new_p_geom = Polygon(close_ring(list(p_ext_coords)), holes=[close_ring(list(e.sgeom.exterior.coords)) for e in rocks_to_add])
-            p.sgeom = make_valid_if_possible(new_p_geom)
+            p.sgeom = new_p_geom
             if p.sgeom is None:
                 continue
 

@@ -1,4 +1,5 @@
 from shapely.wkt import loads
+from shapely.validation import make_valid
 
 class Glacier_entity(object):
     def __init__(self, tup):
@@ -49,10 +50,20 @@ class Glacier_entity(object):
         intersect_area = self.sgeom.intersection(o.sgeom).area
         return max(intersect_area/self_area, intersect_area/o_area)
 
+    def make_valid(self):
+        ''' Use shapely's make_valid to make valid geometries, but it creates
+            multi-polygons, so return a list of objects with valid geometries.
+        '''
+        self.sgeom = make_valid(self.sgeom)
+        if self.sgeom.geom_type.lower().startswith('multi'):
+            return list(self)  # Calls __iter__ below
+        else:
+            return self
+
     def __repr__(self):
         return f"({self.gid}, {self.aid}, {self.line_type})"
 
     def __iter__(self):
         # This allows a call like: list(gl_obj) where the sgeom is
         # a multipolygon that gets expanded into multiple parts
-        return (Glacier_entity((self.gid, self.aid, self.line_type, f'SRID=4326;{e.wkt}')) for e in list(self.sgeom))
+        return (Glacier_entity((self.gid, self.aid, self.line_type, f'SRID=4326;{e.wkt}')) for e in list(self.sgeom.geoms))
