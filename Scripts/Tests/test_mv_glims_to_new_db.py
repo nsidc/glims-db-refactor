@@ -374,3 +374,11 @@ def test_explode_multipolygons_list_of_multi():
     print("test_explode_multipolygons_list_of_multi: glist=", parts, file=sys.stderr)
     print("test_explode_multipolygons_list_of_multi: parts[0]=", parts[0].as_tuple(), file=sys.stderr)
     assert(len(parts) == 4 and type(parts[0]) is Glacier_entity)
+
+
+def test_write_glac_ent_to_file():
+    tuple_data = _make_test_data()
+    obj_data = [Glacier_entity(e) for e in tuple_data]  # Now have list of Glacier_entity objects
+    mv.write_glac_ent_to_file(obj_data, 'test_data_as_shapefile.shp')
+    assert(True)
+

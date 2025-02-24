@@ -17,9 +17,10 @@ import urllib.request
 import json
 #import cProfile
 
+import fiona
 import psycopg2
 import shapely.geometry as shg
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, mapping, shape
 from shapely.validation import make_valid
 from shapely.wkt import loads as sloads
 from rtree import index
@@ -56,6 +57,7 @@ def setup_argument_parser():
 
     p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
     p.add_argument('-L', '--list_tables', action='store_true',  help='Show table list and exit')
+    p.add_argument('-o', '--outfile', default='mv_script_outfile.shp',  help='Output file for processed entities')
     p.add_argument('-q', '--quiet',   action='store_true', default=False, help="Quiet mode.  Don't print status messages.")
     p.add_argument('-w', '--write_to_db', action='store_true',  help='Run SQL directly on database rather than print it.')
 
@@ -417,7 +419,11 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
 
     all_entities = old_to_new_data_model(query_results, dbh_new_cur, args)
 
-    #print("DEBUG: calling glac_objs_to_sql_inserts(glac_bound_objs)", file=sys.stderr)
+    # Write glacier entities to shapefile for testing
+    print("Writing processed polygons to shapefile...", file=sys.stderr)
+    write_glac_ent_to_file(all_entities, args.outfile)
+
+    print("Creating SQL statements ...", file=sys.stderr)
     move_sql =      glac_objs_to_sql_inserts(all_entities)
 
     if not args.quiet:
@@ -425,6 +431,35 @@ def process_glacier_entities(T, dbh_old_cur, dbh_new_cur, args):
 
     for m in move_sql:
         rtn_code = issue_sql(m, dbh_new_cur, args)
+
+
+def write_glac_ent_to_file(all_entities, filename):
+    '''
+    write_glac_ent_to_file -- write all the processed glacier entities to a file for testing.
+    '''
+    schema = {
+            'geometry': 'Polygon',
+            'properties': {'gid': 'str',
+                           'aid': 'int',
+                           'line_type': 'str',
+                           'from_multi': 'str',
+                           'old_gid': 'str',
+                           'old_aid': 'int',
+                          }
+    }
+
+    with fiona.open(filename, 'w', driver='ESRI Shapefile', schema=schema) as fh:
+        for ent in all_entities:
+            obj = {'geometry': mapping(ent.sgeom),
+                   'properties': {'gid': ent.gid,
+                                  'aid': ent.aid,
+                                  'line_type': ent.line_type,
+                                  'from_multi': str(ent.from_multi),
+                                  'old_gid': ent.old_gid,
+                                  'old_aid': ent.old_aid,
+                                 }
+                  }
+            fh.write(obj)
 
 
 def close_ring(ring):
