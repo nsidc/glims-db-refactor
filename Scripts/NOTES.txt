@@ -146,3 +146,16 @@ glims=# select left(st_astext(glacier_polys), 10) as geom_type, count(*) from gl
   POLYGON Z  | 1319217
   (1 row)
 
+
+2025-02-19
+
+Testing the new (correct) way to assign glacier IDs to parts split out from
+multi-polygons.  Added spatial indexing to (hopefully) speed that up a bit.
+
+
+2025-02-20
+
+Current status:  The ID assignment, I think, it working okay now, but the
+make_valid routine to fix topology errors creates multi-polygons, which are
+getting discarded.  This is throwing away two many polygons.  See comments in
+the make_valid_poly_if_possible routine.

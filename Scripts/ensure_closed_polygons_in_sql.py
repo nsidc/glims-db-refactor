@@ -87,8 +87,8 @@ def main():
     with open(infile, 'r') as fh:
         for lineno, line in enumerate(fh):
             if 'INSERT INTO data.glacier_entities' in line:
-                print("Line", lineno)
                 if not is_polygon_closed(line):
+                    print("Line", lineno)
                     print("Found unclosed polygon")
 
 

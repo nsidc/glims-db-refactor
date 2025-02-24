@@ -15,11 +15,14 @@ from collections import OrderedDict
 from collections import defaultdict
 import urllib.request
 import json
+#import cProfile
 
 import psycopg2
 import shapely.geometry as shg
 from shapely.geometry import Polygon
+from shapely.validation import make_valid
 from shapely.wkt import loads as sloads
+from rtree import index
 
 from connection import CONN, CONN_V2, SCHEMA
 from db_objs import Glacier_entity
@@ -272,7 +275,7 @@ def next_aid_generator():
         next_aid += 1
 
 
-def assign_correct_gid(p, processed_singles):
+def assign_correct_gid(p, processed_singles, single_idx):
     '''
     assign_correct_gid -- assign a glacier ID to a new part, taking into
                         account overlap relationships with other glaciers
@@ -290,15 +293,23 @@ def assign_correct_gid(p, processed_singles):
     '''
     best_overlap_frac = 0.0
     best_overlap_gid = ''
-    for single in processed_singles:
+
+    #print("Bounds of p: ", p.sgeom.bounds, file=sys.stderr)
+    if len(p.sgeom.bounds) == 0:
+        return None
+
+    possible_intersection = single_idx.intersection(p.sgeom.bounds, objects=True)
+
+    for o in possible_intersection:
         try:
-            if single.intersects(p):
-                ov_frac = single.max_overlap_frac(p)
+            if o.object.intersects(p):
+                ov_frac = o.object.max_overlap_frac(p)
                 if ov_frac > best_overlap_frac:
                     best_overlap_frac = ov_frac
-                    best_overlap_gid = single.gid
-        except:
-            print(f"assign_correct_gid: intersection failed. Returning None for gid.", file=sys.stderr)
+                    best_overlap_gid = o.object.gid
+        except Exception as e:
+            print(f"assign_correct_gid: intersection failed ({type(e)}). Returning None for gid.", file=sys.stderr)
+            print("Value of o.object: ", o.object, file=sys.stderr)
             return None
 
     if best_overlap_frac == 0.0:
@@ -434,12 +445,22 @@ def make_valid_poly_if_possible(poly):
         return poly
 
     #buffed_poly  = shg.polygon.orient(poly.buffer(0.0))
-    buffed_poly  = poly.buffer(0.0)
-    if buffed_poly.to_wkt().strip().lower().startswith('multi'):
+    #buffed_poly  = poly.buffer(0.0)
+
+    # make_valid creates multi-polygons.  So, here's a possible approach:
+    # - apply make_valid
+    # - call explode_multipolygons on the result (if necessary)
+    # - loop through polygons in the collection and discard any with only
+    #   3 vertices
+    #
+    # What other problems dows make_valid fix??
+
+    fixed_poly  = make_valid(poly)
+    if fixed_poly.wkt.strip().lower().startswith('multi'):
         # Likely complicated (and spurious) rocks; just skip.
         return None
-    if buffed_poly.is_valid:
-        return buffed_poly
+    if fixed_poly.is_valid:
+        return fixed_poly
     else:
         print("Invalid poly:", poly, file=sys.stderr)
         return None
@@ -637,7 +658,12 @@ def process_others(misc_entities_by_aid, processed_singles):
     '''
 
     # Go once through whole list of processed singles and look up misc entities by aid
+    additional_processed_singles = []
     for p in processed_singles:
+        if not p.sgeom.is_valid:
+            print(f"processed single not valid: {p.as_tuple()}", file=sys.stderr)
+            continue
+
         if p.aid in misc_entities_by_aid:
             for m in misc_entities_by_aid[p.aid]:
                 if not m.sgeom.is_valid:
@@ -646,8 +672,9 @@ def process_others(misc_entities_by_aid, processed_singles):
                 if p.touches(m) or p.contains(m):
                     m.gid = p.gid
                     m.aid = p.aid
-                    processed_singles.append(m)
+                    additional_processed_singles.append(m)
 
+    processed_singles.extend(additional_processed_singles)
     return processed_singles
 
 
@@ -657,7 +684,14 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
     these multi-part polygon parts, and convert nunutak polys to holes....
     '''
 
+    # Create spatial index of processed_singles for faster intersections
+    single_idx = index.Index()
+    for gl_obj in processed_singles:
+        single_idx.insert(gl_obj.aid, gl_obj.sgeom.bounds, obj=gl_obj)
+
     get_new_aid = next_aid_generator()
+
+    additional_processed_singles = []
 
     for aid, gl_obj_list in non_singles.items():
 
@@ -683,7 +717,7 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
                     continue
 
             p.old_gid = p.gid
-            new_gid = assign_correct_gid(p, processed_singles)
+            new_gid = assign_correct_gid(p, processed_singles, single_idx)
             #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
             if new_gid is None:
@@ -721,8 +755,10 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
 
             #print("In parts loop: appending ", p, file=sys.stderr)
             add_part_to_glacier_dynamic(p, dbh_new_cur, args)
-            processed_singles.append(p)
+            additional_processed_singles.append(p)
         # Remove gid entry from bounds_by_glac_id ?
+
+    processed_singles.extend(additional_processed_singles)
     return processed_singles
 
 
@@ -1065,4 +1101,5 @@ def main():
 
 
 if __name__ == '__main__':
+    #cProfile.run('main()')
     main()
