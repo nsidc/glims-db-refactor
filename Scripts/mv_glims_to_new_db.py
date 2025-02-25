@@ -556,7 +556,7 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
                 for e in temp:
                     if not e.sgeom.geom_type.lower().startswith('poly'):
                         print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
-                        temp_list_of_lists.extend(list(e))
+                        temp_list_of_lists.extend(explode_multipolygons(e, toplevel=False))
                     else:
                         temp_list_of_lists.append(e)
 
@@ -588,7 +588,7 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
             elif type(v) is Glacier_entity:
                 if not v.sgeom.geom_type.lower().startswith('poly'):
                     print("Found a previously valid multi-polygon: ", v, file=sys.stderr)
-                    valid_pieces.extend(list(v))
+                    valid_pieces.extend(explode_multipolygons(v, toplevel=False))
                 else:
                     valid_pieces.append(o)
             else:
