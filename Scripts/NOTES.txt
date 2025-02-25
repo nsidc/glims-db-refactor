@@ -159,3 +159,11 @@ Current status:  The ID assignment, I think, it working okay now, but the
 make_valid routine to fix topology errors creates multi-polygons, which are
 getting discarded.  This is throwing away two many polygons.  See comments in
 the make_valid_poly_if_possible routine.
+
+
+2025-02-25
+
+With "list" in Pass two of explode (line 588)..., I get MultiPolygon, but
+without, I get GeometryCollection.  So, I need to make this more recursive.
+Apparently, I have a list of objects, one of which is a GeometryCollection
+containing a MultiPolygon.

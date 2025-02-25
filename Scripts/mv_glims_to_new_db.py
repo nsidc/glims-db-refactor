@@ -541,52 +541,64 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
     parts = []
 
     for o in gl_obj_list:
+        #print("EXP: Got geom type", o.sgeom.geom_type, file=sys.stderr)
+        #print("   WKT ===>  ", o.sgeom.wkt[0:10], file=sys.stderr)
         if type(o) is Glacier_entity and o.sgeom is not None:
-            print("Found Glacier_entity w/ non-null geom", file=sys.stderr)
-            if o.sgeom.geom_type.lower().startswith('multi'):
-                print("  >Found multi-polygon geom, ", o, file=sys.stderr)
+            #print("Found Glacier_entity, geom type ", o.sgeom.geom_type, file=sys.stderr)
+            if not o.sgeom.geom_type.lower().startswith('polygon'):
+                print("  #### Found multi-polygon geom, ", o, file=sys.stderr)
                 temp = list(o)  # list(multi) returns list of single OBJECTS
                 print("  list(o): ", temp, file=sys.stderr)
 
                 # Check for one level of nested multi-polygon collections
+                # NEED TO MAKE THIS ACTUALLY RECURSIVE
                 temp_list_of_lists = []
                 for e in temp:
-                    if e.sgeom.geom_type.lower().startswith('multi'):
+                    if not e.sgeom.geom_type.lower().startswith('poly'):
                         print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
-                        temp_list_of_lists.append(list(e))
+                        temp_list_of_lists.extend(list(e))
                     else:
                         temp_list_of_lists.append(e)
 
                 parts.extend(flatten_recursive(temp_list_of_lists))
 
             elif o.sgeom.geom_type.lower().startswith('polygon'):
-                print("Found Polygon", file=sys.stderr)
+                #print("Found Polygon", file=sys.stderr)
                 parts.append(o)
         elif type(o) is list:
             print("EXP:  Found List. Recursing.", file=sys.stderr)
             parts.extend(explode_multipolygons(o, toplevel=False))
         else:
-            pass # ???  Shouldn't get here.
+            print("DEBUG:  Shouldn't get here.", file=sys.stderr)
 
     if toplevel:
 
-        # Pass 2
-        print("EXP:  Pass 2", file=sys.stderr)
+        # Pass 2:  Ensure validity
+        #print("EXP:  Pass 2", file=sys.stderr)
 
-        list_of_lists = []
+        valid_pieces = []
 
         for o in parts:
-            if not o.sgeom.is_valid:
-                valid_pieces = list(o.make_valid())
-                print("EXP:  valid_pieces, before: ", valid_pieces, file=sys.stderr)
-                # Discard polygons with fewer than 6 vertices (including duped first-last)
-                valid_pieces = [e for e in valid_pieces if len(e.sgeom.exterior.coords) > 5]
-                print("EXP:  valid_pieces, after: ", valid_pieces, file=sys.stderr)
-                list_of_lists.append(valid_pieces)
+            print("PASS2: Got geom type", o.sgeom.geom_type, file=sys.stderr)
+            print("   WKT ===>  ", o.sgeom.wkt[0:10], file=sys.stderr)
+            v = o.make_valid()
+            #print("EXP:  valid_pieces, before: ", valid_pieces, file=sys.stderr)
+            if type(v) is list:
+                valid_pieces.extend(v)
+            elif type(v) is Glacier_entity:
+                if not v.sgeom.geom_type.lower().startswith('poly'):
+                    print("Found a previously valid multi-polygon: ", v, file=sys.stderr)
+                    valid_pieces.extend(list(v))
+                else:
+                    valid_pieces.append(o)
             else:
-                list_of_lists.append(o)
+                print("Fatal: Result of o.make_valid() was: ", type(v), file=sys.stderr)
+                sys.exit(1)
 
-        return flatten_recursive(list_of_lists)
+        # Discard polygons with fewer than 6 vertices (including duped first-last)
+        filtered = [e for e in valid_pieces if len(e.sgeom.exterior.coords) > 5]
+        #print("EXP:  filtered, after: ", filtered, file=sys.stderr)
+        return filtered
 
     else:
         return parts
@@ -842,7 +854,7 @@ def process_single_entities(singles, rocks_by_aid):
             sys.exit(1)
         bound_obj = bound_obj_list[0]
         if aid in rocks_by_aid:
-            rock_objs = explode_multipolygons([rocks_by_aid[aid]])
+            rock_objs = explode_multipolygons(rocks_by_aid[aid])
             # Check for containment...
             int_rocks = []
             for r in rock_objs:
