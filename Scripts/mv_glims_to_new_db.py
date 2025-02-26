@@ -546,7 +546,10 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
         if type(o) is Glacier_entity and o.sgeom is not None:
             #print("Found Glacier_entity, geom type ", o.sgeom.geom_type, file=sys.stderr)
             if not o.sgeom.geom_type.lower().startswith('polygon'):
-                print("  #### Found multi-polygon geom, ", o, file=sys.stderr)
+                print("  #### Found non-polygon geom, ", o, file=sys.stderr)
+                if o.sgeom.geom_type.lower().startswith('linestr'):
+                    print("Found linestring. Skipping.", file=sys.stderr)
+                    continue
                 temp = list(o)  # list(multi) returns list of single OBJECTS
                 print("  list(o): ", temp, file=sys.stderr)
 
@@ -555,7 +558,10 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
                 temp_list_of_lists = []
                 for e in temp:
                     if not e.sgeom.geom_type.lower().startswith('poly'):
-                        print(' ### Nested multi: ', e.sgeom, file=sys.stderr)
+                        if e.sgeom.geom_type.lower().startswith('linestr'):
+                            print("Found linestring. Skipping", file=sys.stderr)
+                            continue
+                        print(' ### non-poly : ', e.sgeom, file=sys.stderr)
                         temp_list_of_lists.extend(explode_multipolygons(e, toplevel=False))
                     else:
                         temp_list_of_lists.append(e)
