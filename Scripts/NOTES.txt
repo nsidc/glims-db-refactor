@@ -167,3 +167,16 @@ With "list" in Pass two of explode (line 588)..., I get MultiPolygon, but
 without, I get GeometryCollection.  So, I need to make this more recursive.
 Apparently, I have a list of objects, one of which is a GeometryCollection
 containing a MultiPolygon.
+
+
+2025-02-26
+
+The exploding of multi-polygons (or multiple polygons), as well as the
+corrections of topology errors, seems to be working perfectly now.  Remaining:
+ID assignment is looking only at max overlap, which is failing in the following
+cases:
+
+    - small glaciers on nunataks overlap the "best" with the containing glacier
+      (cf. Grosser Aletschgletcher).
+
+    - ???
