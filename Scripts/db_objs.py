@@ -16,6 +16,7 @@ class Glacier_entity(object):
         self.from_multi = False
         self.old_gid = None
         self.old_aid = None
+        self.from_aid = None
 
     def as_tuple(self):
         rtn = (self.gid, self.aid, self.line_type, self.as_ewkt_with_srid())

@@ -295,10 +295,11 @@ def assign_correct_gid(p, processed_singles, single_idx):
     '''
     best_overlap_frac = 0.0
     best_overlap_gid = ''
+    best_overlap_aid = None
 
     #print("Bounds of p: ", p.sgeom.bounds, file=sys.stderr)
     if len(p.sgeom.bounds) == 0:
-        return None
+        return None, None
 
     possible_intersection = single_idx.intersection(p.sgeom.bounds, objects=True)
 
@@ -309,17 +310,18 @@ def assign_correct_gid(p, processed_singles, single_idx):
                 if ov_frac > best_overlap_frac:
                     best_overlap_frac = ov_frac
                     best_overlap_gid = o.object.gid
+                    best_overlap_aid = o.object.aid
         except Exception as e:
             print(f"assign_correct_gid: intersection failed ({type(e)}). Returning None for gid.", file=sys.stderr)
             print("Value of o.object: ", o.object, file=sys.stderr)
-            return None
+            return None, None
 
     if best_overlap_frac == 0.0:
         # Create new ID here
         new_gid = make_new_gid(p, processed_singles)
-        return new_gid
+        return new_gid, None
     else:
-        return best_overlap_gid
+        return (best_overlap_gid, best_overlap_aid)
 
 
 def make_new_gid(p, processed_singles):
@@ -445,6 +447,7 @@ def write_glac_ent_to_file(all_entities, filename):
                            'from_multi': 'str',
                            'old_gid': 'str',
                            'old_aid': 'int',
+                           'from_aid': 'int',
                           }
     }
 
@@ -457,6 +460,7 @@ def write_glac_ent_to_file(all_entities, filename):
                                   'from_multi': str(ent.from_multi),
                                   'old_gid': ent.old_gid,
                                   'old_aid': ent.old_aid,
+                                  'from_aid': ent.from_aid,
                                  }
                   }
             fh.write(obj)
@@ -466,53 +470,6 @@ def close_ring(ring):
     if ring[0] != ring[-1]:
         ring = ring + [ring[0]]
     return ring
-
-
-def make_valid_poly_if_possible(poly):
-    '''
-    Use shapely to check validity of a Polygon geometry, and fix if possible.
-
-    Return:
-        Valid Polygon geometry        if input poly is already valid, or fixed with buffering
-        None                          if input poly is invalid even after buffering
-    '''
-    if poly.is_valid:
-        return poly
-
-    #buffed_poly  = shg.polygon.orient(poly.buffer(0.0))
-    #buffed_poly  = poly.buffer(0.0)
-
-    # make_valid creates multi-polygons.  So, here's a possible approach:
-    # - apply make_valid
-    # - call explode_multipolygons on the result (if necessary)
-    # - loop through polygons in the collection and discard any with only
-    #   3 vertices
-    #
-    # What other problems dows make_valid fix??
-
-    fixed_poly  = make_valid(poly)
-    if fixed_poly.wkt.strip().lower().startswith('multi'):
-        # Likely complicated (and spurious) rocks; just skip.
-        return None
-    if fixed_poly.is_valid:
-        return fixed_poly
-    else:
-        print("Invalid poly:", poly, file=sys.stderr)
-        return None
-
-
-def make_valid_if_possible(gl_obj):
-    ''' Like above make_valid_poly_if_possible, but operate on Glacier_entity object
-    '''
-    if type(gl_obj) is Glacier_entity:
-        fixed_geom = make_valid_poly_if_possible(gl_obj.sgeom)
-        gl_obj.sgeom = fixed_geom
-        return gl_obj
-    elif type(gl_obj) is Polygon:
-        return make_valid_poly_if_possible(gl_obj)
-    else:
-        print("Warning: make_valid_if_possible wants a Glacier_entity object: ", file=sys.stderr)
-        sys.exit(1)
 
 
 def explode_multipolygons(gl_obj_list, toplevel=True):
@@ -541,27 +498,19 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
     parts = []
 
     for o in gl_obj_list:
-        #print("EXP: Got geom type", o.sgeom.geom_type, file=sys.stderr)
-        #print("   WKT ===>  ", o.sgeom.wkt[0:10], file=sys.stderr)
         if type(o) is Glacier_entity and o.sgeom is not None:
-            #print("Found Glacier_entity, geom type ", o.sgeom.geom_type, file=sys.stderr)
             if not o.sgeom.geom_type.lower().startswith('polygon'):
-                print("  #### Found non-polygon geom, ", o, file=sys.stderr)
                 if o.sgeom.geom_type.lower().startswith('linestr'):
-                    print("Found linestring. Skipping.", file=sys.stderr)
                     continue
                 temp = list(o)  # list(multi) returns list of single OBJECTS
-                print("  list(o): ", temp, file=sys.stderr)
 
-                # Check for one level of nested multi-polygon collections
-                # NEED TO MAKE THIS ACTUALLY RECURSIVE
+                # Check for nested non-polygon collections
                 temp_list_of_lists = []
                 for e in temp:
                     if not e.sgeom.geom_type.lower().startswith('poly'):
                         if e.sgeom.geom_type.lower().startswith('linestr'):
-                            print("Found linestring. Skipping", file=sys.stderr)
+                            # the make_valid routine sometimes makes spurious linestrings.
                             continue
-                        print(' ### non-poly : ', e.sgeom, file=sys.stderr)
                         temp_list_of_lists.extend(explode_multipolygons(e, toplevel=False))
                     else:
                         temp_list_of_lists.append(e)
@@ -569,10 +518,8 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
                 parts.extend(flatten_recursive(temp_list_of_lists))
 
             elif o.sgeom.geom_type.lower().startswith('polygon'):
-                #print("Found Polygon", file=sys.stderr)
                 parts.append(o)
         elif type(o) is list:
-            print("EXP:  Found List. Recursing.", file=sys.stderr)
             parts.extend(explode_multipolygons(o, toplevel=False))
         else:
             print("DEBUG:  Shouldn't get here.", file=sys.stderr)
@@ -580,20 +527,15 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
     if toplevel:
 
         # Pass 2:  Ensure validity
-        #print("EXP:  Pass 2", file=sys.stderr)
 
         valid_pieces = []
 
         for o in parts:
-            print("PASS2: Got geom type", o.sgeom.geom_type, file=sys.stderr)
-            print("   WKT ===>  ", o.sgeom.wkt[0:10], file=sys.stderr)
             v = o.make_valid()
-            #print("EXP:  valid_pieces, before: ", valid_pieces, file=sys.stderr)
             if type(v) is list:
                 valid_pieces.extend(v)
             elif type(v) is Glacier_entity:
                 if not v.sgeom.geom_type.lower().startswith('poly'):
-                    print("Found a previously valid multi-polygon: ", v, file=sys.stderr)
                     valid_pieces.extend(explode_multipolygons(v, toplevel=False))
                 else:
                     valid_pieces.append(o)
@@ -603,7 +545,6 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
 
         # Discard polygons with fewer than 6 vertices (including duped first-last)
         filtered = [e for e in valid_pieces if len(e.sgeom.exterior.coords) > 5]
-        #print("EXP:  filtered, after: ", filtered, file=sys.stderr)
         return filtered
 
     else:
@@ -809,7 +750,7 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
                 continue
 
             p.old_gid = p.gid
-            new_gid = assign_correct_gid(p, processed_singles, single_idx)
+            new_gid, from_aid = assign_correct_gid(p, processed_singles, single_idx)
             #print("In parts loop: new_gid = ", new_gid, file=sys.stderr)
 
             if new_gid is None:
@@ -820,6 +761,7 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
                 sys.exit(1)
 
             p.gid = new_gid
+            p.from_aid = from_aid
             p.old_aid = p.aid
             p.aid = next(get_new_aid)
             #print("In parts loop: new_aid = ", new_aid, file=sys.stderr)
@@ -842,6 +784,10 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
             #print("In parts loop: appending ", p, file=sys.stderr)
             add_part_to_glacier_dynamic(p, dbh_new_cur, args)
             additional_processed_singles.append(p)
+
+            # Add new part to spatial index
+            single_idx.insert(p.aid, p.sgeom.bounds, obj=p)
+
         # Remove gid entry from bounds_by_glac_id ?
 
     processed_singles.extend(additional_processed_singles)
