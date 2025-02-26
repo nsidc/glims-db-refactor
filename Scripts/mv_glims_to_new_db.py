@@ -293,9 +293,9 @@ def assign_correct_gid(p, processed_singles, single_idx):
     prohibitive, O(N2) I think.
 
     '''
-    best_overlap_frac = 0.0
-    best_overlap_gid = ''
-    best_overlap_aid = None
+    max_overlap_area = 0.0
+    max_overlap_gid = ''
+    max_overlap_aid = None
 
     #print("Bounds of p: ", p.sgeom.bounds, file=sys.stderr)
     if len(p.sgeom.bounds) == 0:
@@ -306,22 +306,22 @@ def assign_correct_gid(p, processed_singles, single_idx):
     for o in possible_intersection:
         try:
             if o.object.intersects(p):
-                ov_frac = o.object.max_overlap_frac(p)
-                if ov_frac > best_overlap_frac:
-                    best_overlap_frac = ov_frac
-                    best_overlap_gid = o.object.gid
-                    best_overlap_aid = o.object.aid
+                ov_area = o.object.overlap_area(p)
+                if ov_area > max_overlap_area:
+                    max_overlap_area = ov_area
+                    max_overlap_gid = o.object.gid
+                    max_overlap_aid = o.object.aid
         except Exception as e:
             print(f"assign_correct_gid: intersection failed ({type(e)}). Returning None for gid.", file=sys.stderr)
             print("Value of o.object: ", o.object, file=sys.stderr)
             return None, None
 
-    if best_overlap_frac == 0.0:
+    if max_overlap_area == 0.0:
         # Create new ID here
         new_gid = make_new_gid(p, processed_singles)
         return new_gid, None
     else:
-        return (best_overlap_gid, best_overlap_aid)
+        return (max_overlap_gid, max_overlap_aid)
 
 
 def make_new_gid(p, processed_singles):

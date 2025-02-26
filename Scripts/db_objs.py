@@ -45,11 +45,8 @@ class Glacier_entity(object):
     def intersects(self, o):
         return self.sgeom.intersects(o.sgeom)
 
-    def max_overlap_frac(self, o):
-        self_area = self.sgeom.area
-        o_area = o.sgeom.area
-        intersect_area = self.sgeom.intersection(o.sgeom).area
-        return max(intersect_area/self_area, intersect_area/o_area)
+    def overlap_area(self, o):
+        return self.sgeom.intersection(o.sgeom).area
 
     def make_valid(self):
         ''' Use shapely's make_valid to make valid geometries, but it creates
