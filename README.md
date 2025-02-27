@@ -22,8 +22,12 @@ The main changes to the GLIMS Glacier Database will be:
   by numerous users, including the maintainers of the RGI);
 * Formerly 3-D polygons ("POLYGON Z") will be 2-D ("POLYGON") (requested
   occasionally by users);
-* Topological errors (self-intersections) in polygons will be fixed. This
-  is an item that has been raised in a DAAC User Working Group meeting.
+* Many topological errors (self-intersections) in polygons will be fixed,
+  hour-glass type self-intersections in particular. Some errors in
+  non-multi-polygons, e.g. two parts of a polygon meeting at a point but
+  not intersecting, are not seen as errors in some software, and will pass
+  through unchanged.  Fixing the self-intersections is an item that has
+  been raised in a DAAC User Working Group meeting.
 * Multi-polygons, GeometryCollection objects, and glacier\_id-sharing
   multiple polygons will be split out into single polygons, with the
   correct IDs, or new IDs, assigned as necessary (RGI request).
