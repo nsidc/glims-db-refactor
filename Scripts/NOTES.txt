@@ -180,3 +180,7 @@ cases:
       (cf. Grosser Aletschgletcher).
 
     - ???
+
+The first problem is fixed now.  I'm using max area of overlap rather than max
+overlap fraction for ID assignment.  This will change some IDs, e.g. for the
+whole ice cap outlines over Iceland.  But I think that's fine.

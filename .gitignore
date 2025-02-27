@@ -1,2 +1,8 @@
 Util_scripts_no_commit
 out.sql
+*.shp
+*.shx
+*.dbf
+*.prj
+*.qgs
+*~

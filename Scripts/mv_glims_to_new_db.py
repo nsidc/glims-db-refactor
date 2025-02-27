@@ -497,10 +497,13 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
 
     parts = []
 
+    if type(gl_obj_list) is Glacier_entity:
+        gl_obj_list = [gl_obj_list]
+
     for o in gl_obj_list:
         if type(o) is Glacier_entity and o.sgeom is not None:
             if not o.sgeom.geom_type.lower().startswith('polygon'):
-                if o.sgeom.geom_type.lower().startswith('linestr'):
+                if o.sgeom.geom_type.lower().startswith('linestr') or o.sgeom.geom_type.lower().startswith('point'):
                     continue
                 temp = list(o)  # list(multi) returns list of single OBJECTS
 
@@ -508,7 +511,7 @@ def explode_multipolygons(gl_obj_list, toplevel=True):
                 temp_list_of_lists = []
                 for e in temp:
                     if not e.sgeom.geom_type.lower().startswith('poly'):
-                        if e.sgeom.geom_type.lower().startswith('linestr'):
+                        if e.sgeom.geom_type.lower().startswith('linestr') or e.sgeom.geom_type.lower().startswith('point'):
                             # the make_valid routine sometimes makes spurious linestrings.
                             continue
                         temp_list_of_lists.extend(explode_multipolygons(e, toplevel=False))
