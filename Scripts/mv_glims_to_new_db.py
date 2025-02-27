@@ -704,13 +704,17 @@ def process_others(misc_entities_by_aid, processed_singles):
 
         if p.aid in misc_entities_by_aid:
             for m in misc_entities_by_aid[p.aid]:
-                if not m.sgeom.is_valid:
-                    print(f"misc poly {m.as_tuple()} is not valid", file=sys.stderr)
-                    continue
-                if p.touches(m) or p.contains(m):
-                    m.gid = p.gid
-                    m.aid = p.aid
-                    additional_processed_singles.append(m)
+                misc_objs = explode_multipolygons([m])
+
+                for mo in misc_objs:
+                    if not mo.sgeom.is_valid:
+                        print(f"misc poly {mo.as_tuple()} is not valid", file=sys.stderr)
+                        continue
+                    if p.touches(mo) or p.contains(mo):
+                        mo.gid = p.gid
+                        mo.aid = p.aid
+
+                    additional_processed_singles.append(mo)
 
     processed_singles.extend(additional_processed_singles)
     return processed_singles
