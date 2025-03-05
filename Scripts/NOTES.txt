@@ -184,3 +184,22 @@ cases:
 The first problem is fixed now.  I'm using max area of overlap rather than max
 overlap fraction for ID assignment.  This will change some IDs, e.g. for the
 whole ice cap outlines over Iceland.  But I think that's fine.
+
+
+2025-03-05
+
+Latest version of script ran for the whole world in 44 hours.  Now need to
+evaluate the results, but no errors appeared in the error log.
+
+Some debris_cov outlines are getting dropped.  For example, on Malaspina, and
+on Kamchatka.
+
+glims=# select line_type, count(line_type) from glacier_polygons group by line_type;
+  line_type  | count  (glims prod)  | count  (glims_v2)
+-------------+----------------------+--------------------
+ basin_bound |      9               |      8
+ debris_cov  |  14872               |   2067
+ glac_bound  | 815239               | 797603
+ intrnl_rock | 488799               |      0
+ pro_lake    |    291               |    133
+ supra_lake  |     18               |     10
