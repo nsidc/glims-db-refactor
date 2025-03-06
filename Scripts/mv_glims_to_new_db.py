@@ -344,8 +344,6 @@ def make_new_gid(p, processed_singles):
         the new GLIMS glacier ID
     '''
 
-    #print("DEBUG: make_new_gid: input p is ", p, file=sys.stderr)
-
     try:
         ppoly = shg.polygon.orient(shg.shape(p.sgeom))
         center = ppoly.representative_point()
@@ -674,10 +672,9 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
         else:
             singles[aid].extend(gl_obj_list)    # or .append(gl_obj_list[0])
 
-    # Process the single polygons.  This routine returns a structure of all the
-    # already-processed single polygon objects. Dictionary keyed by
-    # analysis_id?  glacier_id?  Singles created from exploding multi-polygons
-    # will be added to this structure.
+    # Process the single polygons.  This routine returns a list of all the
+    # already-processed single polygon objects. Singles created from exploding
+    # multi-polygons will be added to this list.
 
     processed_singles = process_single_entities(singles, rocks_by_aid)
 
@@ -708,19 +705,25 @@ def process_others(misc_entities_by_aid, processed_singles):
             print(f"processed single not valid: {p.as_tuple()}", file=sys.stderr)
             continue
 
-        if p.aid in misc_entities_by_aid:
-            for m in misc_entities_by_aid[p.aid]:
-                misc_objs = explode_multipolygons([m])
+        misc_ents = misc_entities_by_aid.get(p.aid, [])
+        misc_ents.extend(misc_entities_by_aid.get(p.old_aid, []))
+        misc_ents.extend(misc_entities_by_aid.get(p.from_aid, []))
 
-                for mo in misc_objs:
-                    if not mo.sgeom.is_valid:
-                        print(f"misc poly {mo.as_tuple()} is not valid", file=sys.stderr)
-                        continue
-                    if p.touches(mo) or p.contains(mo):
-                        mo.gid = p.gid
-                        mo.aid = p.aid
+        # Remove any duplicates
+        misc_ents = list(set(misc_ents))
 
-                    additional_processed_singles.append(mo)
+        for m in misc_ents:
+            misc_objs = explode_multipolygons([m])
+
+            for mo in misc_objs:
+                if not mo.sgeom.is_valid:
+                    print(f"misc poly {mo.as_tuple()} is not valid", file=sys.stderr)
+                    continue
+                if p.touches(mo) or p.contains(mo):
+                    mo.gid = p.gid
+                    mo.aid = p.aid
+
+                additional_processed_singles.append(mo)
 
     processed_singles.extend(additional_processed_singles)
     return processed_singles
@@ -808,16 +811,19 @@ def process_nonsingle_entities(non_singles, processed_singles, rocks_by_aid, dbh
 
 
 def process_single_entities(singles, rocks_by_aid):
-
-    #print("process_single_entities: singles is", singles, file=sys.stderr)
-
+    ''' process_single_entities
+        Combine internal rock polygons with glacier boundaries as holes.
+    '''
     bound_objs_to_ingest = []
     orphan_rocks_by_aid = defaultdict(list)
-    for aid, bound_obj_list in singles.items():
-        if len(bound_obj_list) > 1:
-            print("Multi-polygon found in singles list. Exiting.", file=sys.stderr)
-            sys.exit(1)
-        bound_obj = bound_obj_list[0]
+
+    # First pass to make all input singles valid.
+    fixed_singles = []
+    for aid, sing in singles.items():
+        fixed_singles.extend(explode_multipolygons(sing))
+
+    for bound_obj in fixed_singles:
+        aid = bound_obj.aid
         if aid in rocks_by_aid:
             rock_objs = explode_multipolygons(rocks_by_aid[aid])
             # Check for containment...
@@ -833,7 +839,7 @@ def process_single_entities(singles, rocks_by_aid):
                     print("Why is this bound_obj a list??", bound_obj, file=sys.stderr)
 
                 # Skip rocks with different analysis_id values.
-                if r.aid != bound_obj.aid:
+                if r.aid != aid:
                     continue
 
                 if bound_obj.contains(r):
@@ -979,7 +985,6 @@ def glac_objs_to_sql_inserts(obj_list):
             sys.exit(1)
 
         gid = gl_obj.gid
-        #print("gl_obj: ", gl_obj, file=sys.stderr)  # DEBUG
         coords = gl_obj.as_ewkt_with_srid()
         geom_part = f"ST_GeomFromEWKT('{coords}')"
         sql = f'INSERT INTO {SCHEMA}.glacier_entities (analysis_id, line_type, entity_geom) VALUES ' \

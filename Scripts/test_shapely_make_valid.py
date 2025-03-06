@@ -6,7 +6,22 @@ from shapely.validation import make_valid
 
 p_v = Polygon(((0,0),(1,0),(1,1),(0,1), (0,0)))
 p_i = Polygon(((0,0),(1,1),(1,0),(0,1), (0,0)))
+
+print("p_i: ", p_i)
+
+print("Printing 'make_valid(p_i)'")
 print(make_valid(p_i))
+print("Printing 'p_i.buffer(0.0)'")
+print(p_i.buffer(0.0))
+
+p_i = Polygon(((0,0),(10,0),(10,10),(0,10),(1,-1),(0,0)))
+
+print("p_i is now: ", p_i)
+
+print("Printing 'make_valid(p_i)'")
+print(make_valid(p_i))
+print("Printing 'p_i.buffer(0.0)'")
+print(p_i.buffer(0.0))
 
 
 import db_objs as d

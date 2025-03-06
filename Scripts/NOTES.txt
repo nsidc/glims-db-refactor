@@ -203,3 +203,10 @@ glims=# select line_type, count(line_type) from glacier_polygons group by line_t
  intrnl_rock | 488799               |      0
  pro_lake    |    291               |    133
  supra_lake  |     18               |     10
+
+
+ 2025-03-06
+
+ The problem with the debris-cover drop-outs is that the initial list if
+ "single" objects contains invalid polygons.  So, the "process_singles" routine
+ needs to explode everything (which does validation also). (DONE)
