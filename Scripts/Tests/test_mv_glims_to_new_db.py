@@ -7,7 +7,6 @@ import psycopg2
 
 import mv_glims_to_new_db as mv
 from db_objs import Glacier_entity
-from connection import CONN, CONN_V2
 
 
 def _make_test_data():
@@ -285,12 +284,17 @@ def test_connect_to_db_old_by_default():
 
 
 def test_connect_to_db_old_by_arg():
-    old_cur = mv.connect_to_db(db='old')
+    old_cur = mv.connect_to_db(db='src')
     assert(type(old_cur) is psycopg2.extensions.cursor)
 
 
 def test_connect_to_db_new_by_arg():
-    new_cur = mv.connect_to_db(db='new')
+    new_cur = mv.connect_to_db(db='dst')
+    assert(type(new_cur) is psycopg2.extensions.cursor)
+
+
+def test_connect_to_db_new_ENV_by_arg():
+    new_cur = mv.connect_to_db(db='dst', dsthost='new')
     assert(type(new_cur) is psycopg2.extensions.cursor)
 
 

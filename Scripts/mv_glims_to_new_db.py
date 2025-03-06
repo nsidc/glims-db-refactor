@@ -25,7 +25,7 @@ from shapely.validation import make_valid
 from shapely.wkt import loads as sloads
 from rtree import index
 
-from connection import CONN, CONN_V2, SCHEMA
+from connection import CONN, CONN_OLDV2, CONN_NEWV2, SCHEMA
 from db_objs import Glacier_entity
 
 # For handling GLIMS IDs
@@ -55,6 +55,7 @@ def setup_argument_parser():
     g2.add_argument('-F', '--From_glacier_entities', action='store_true', help=F_help)
     g2.add_argument('-T', '--To_glacier_entities', action='store_true',  help=T_help)
 
+    p.add_argument('-H', '--dsthost', choices=['old', 'new'], default='old',  help='Old (same ver as prod) or new DB environment for destination DB.')
     p.add_argument('-d', '--debug', action='store_true',  help='Run in debugging mode.')
     p.add_argument('-L', '--list_tables', action='store_true',  help='Show table list and exit')
     p.add_argument('-o', '--outfile', default='mv_script_outfile.shp',  help='Output file for processed entities')
@@ -212,8 +213,8 @@ def check_table_dependencies(tables):
     return True
 
 
-def connect_to_db(db='old'):
-    if db == 'old':
+def connect_to_db(db='src', dsthost='old'):
+    if db == 'src':
         try:
             db_old = psycopg2.connect(CONN)
         except:
@@ -222,12 +223,17 @@ def connect_to_db(db='old'):
 
         return db_old.cursor()
 
-    elif db == 'new':
+    elif db == 'dst':
+
+        if dsthost == 'old':
+            conn_info = CONN_OLDV2
+        else:
+            conn_info = CONN_NEWV2
 
         try:
-            db_new = psycopg2.connect(CONN_V2)
+            db_new = psycopg2.connect(conn_info)
         except psycopg2.Error as e:
-            print(f"Unable to connect to the new database: {e}", file=sys.stderr)
+            print(f"Unable to connect to the destination database: {e}", file=sys.stderr)
             sys.exit(1)
 
         db_new.set_session(autocommit=True)
@@ -1062,8 +1068,8 @@ def do_db_move(args):
         sys.exit(2)
 
     # Open connections to both databases
-    dbh_old_cur = connect_to_db('old')
-    dbh_new_cur = connect_to_db('new')
+    dbh_old_cur = connect_to_db('src', args.dsthost)
+    dbh_new_cur = connect_to_db('dst', args.dsthost)
 
     # Do sanity check if option From_glacier_entities is True
     if args.From_glacier_entities:
