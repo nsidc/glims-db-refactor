@@ -52,7 +52,7 @@ def is_polygon_closed(ewkt_string):
 
     # Split coordinates into individual points
     for ring_no, ring in enumerate(re.findall(r'(\([\d\s,.]+\))', coordinates_str)):
-        print(f"ring {ring_no} = {ring}")
+        #print(f"ring {ring_no} = {ring}")
         coordinates = ring_str_to_coords(ring)
         if coordinates[0] != coordinates[-1]:
             return False
