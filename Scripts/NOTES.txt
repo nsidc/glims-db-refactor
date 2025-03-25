@@ -205,8 +205,44 @@ glims=# select line_type, count(line_type) from glacier_polygons group by line_t
  supra_lake  |     18               |     10
 
 
- 2025-03-06
+2025-03-06
 
- The problem with the debris-cover drop-outs is that the initial list if
- "single" objects contains invalid polygons.  So, the "process_singles" routine
- needs to explode everything (which does validation also). (DONE)
+The problem with the debris-cover drop-outs is that the initial list if
+"single" objects contains invalid polygons.  So, the "process_singles" routine
+needs to explode everything (which does validation also). (DONE)
+
+
+2025-03-10
+
+Weekend run (whole world into DB) took 2731m37.303s.
+
+
+Errors in databases*
+
+Database      | New                           | Old (production)
+--------------|-------------------------------|-----------------------------------------
+Count         | 562                           | 61779
+--------------|-------------------------------|-----------------------------------------
+Reasons       | Duplicate Rings               |
+              | Holes are nested              |
+              | Interior is disconnected      |
+              | Self-intersection             |
+--------------|-------------------------------|-----------------------------------------
+              |                               | Duplicate Rings
+              |                               | Ring Self-intersection
+              |                               | Self-intersection
+              |                               | Too few points in geometry component
+
+*Determined by these queries:
+
+Old DB:
+    select count(*) from glacier_polygons where not st_isvalid(glacier_polys);
+New DB:
+    select count(*) from glacier_entities where not st_isvalid(entity_geom);
+
+Reasons:
+
+Old DB:
+    select distinct substring(st_isvalidreason(glacier_polys), '([A-Za-z\s-]+)') from glacier_polygons where not st_isvalid(glacier_polys);
+New DB:
+    select distinct substring(st_isvalidreason(entity_geom), '([A-Za-z\s-]+)') from glacier_entities where not st_isvalid(gentity_geom);
