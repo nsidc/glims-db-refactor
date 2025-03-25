@@ -590,13 +590,10 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
     Here are the needed actions:
 
     All single polygons (for a given region but including all as-of times) must
-    be done first, before any multipolygons. Thus, I must do the move region by
-    region, including all outlines (for all times) in each region.
+    be done first, before any multipolygons.
 
     0. intrnl_rock polygons and glac_bound polygons that belong together share
-       an analysis_id.  Therefore, I should first combine them into holey
-       polygons before splitting up multi-polygons.  Does that do the right
-       thing? (I don't think so ... ??)
+       an analysis_id.
 
        What about retired records?  Just copy those to new DB.
 
@@ -618,10 +615,6 @@ def old_to_new_data_model(query_results, dbh_new_cur, args):
 
     3. Loop through all the non-glac_bound entities (debris_cov, lakes...) and
        assign IDs via steps 2A and 2B above (via overlap relationships).
-
-    How will this work to run over different regions?  In theory, there will be
-    no overlapping glacier outlines that are in different regions.  But do any
-    multi-polygons span regions??  How to find out?
 
     The last two tables, after the glacier_entities, are the glacier_countries
     and glacier_map_info tables.  Will these have to be reconstructed?  And
